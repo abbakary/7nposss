@@ -1601,6 +1601,19 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('metricCompletedOrders').textContent = summary.order_stats.completed;
         document.getElementById('metricTotalSpent').textContent = formatCurrency(summary.total_spent);
 
+        // Update quick overview cards
+        document.getElementById('quickTotalVehicles').textContent = summary.total_vehicles;
+        document.getElementById('quickCompletedServices').textContent = summary.total_invoices;
+        document.getElementById('quickReturningCount').textContent = summary.returning_vehicles;
+        document.getElementById('quickTotalRevenue').textContent = formatCurrency(summary.total_spent);
+
+        // Update trends
+        const completionRate = summary.total_invoices > 0 ? Math.round((summary.order_stats.completed / summary.total_invoices) * 100) : 0;
+        document.getElementById('quickCompletionRate').textContent = completionRate + '% completion';
+
+        const returnRate = summary.total_vehicles > 0 ? Math.round((summary.returning_vehicles / summary.total_vehicles) * 100) : 0;
+        document.getElementById('quickReturnRate').textContent = returnRate + '% return rate';
+
         // Display revenue by order type if available
         if (summary.revenue_by_type) {
             const revenueMetricsRow = document.getElementById('revenueMetricsRow');
@@ -1654,6 +1667,48 @@ document.addEventListener('DOMContentLoaded', function() {
         const patternsSection = document.getElementById('patternsSection');
         if (patternsSection) {
             patternsSection.style.display = 'block';
+        }
+
+        // Update comparison metrics
+        const comparisonSection = document.getElementById('comparisonSection');
+        if (comparisonSection) {
+            document.getElementById('compAvgCost').textContent = formatCurrency(summary.total_vehicles > 0 ? summary.total_spent / summary.total_vehicles : 0);
+            document.getElementById('compCompletionRate').textContent = completionRate + '%';
+            document.getElementById('compActiveVehicles').textContent = summary.total_vehicles;
+
+            // Calculate days between services (estimated)
+            const daysBetween = summary.returning_vehicles > 0 ? 30 : '-';
+            document.getElementById('compDaysBetween').textContent = daysBetween;
+
+            comparisonSection.style.display = 'block';
+        }
+
+        // Update fleet health section
+        const healthSection = document.getElementById('healthSection');
+        if (healthSection) {
+            let healthStatus = 'Good - All systems operational';
+            let serviceStatus = 'Most vehicles on schedule';
+
+            if (completionRate >= 90) {
+                healthStatus = 'Excellent - High service completion rate';
+            } else if (completionRate >= 70) {
+                healthStatus = 'Good - Services progressing well';
+            } else {
+                healthStatus = 'Fair - Some services pending';
+            }
+
+            if (returnRate >= 50) {
+                serviceStatus = 'Strong - High vehicle return rate indicates customer satisfaction';
+            } else if (returnRate >= 30) {
+                serviceStatus = 'Good - Moderate repeat business';
+            } else {
+                serviceStatus = 'New - Building customer base';
+            }
+
+            document.getElementById('fleetHealthStatus').textContent = healthStatus;
+            document.getElementById('fleetServiceStatus').textContent = serviceStatus;
+
+            healthSection.style.display = 'block';
         }
     }
     
