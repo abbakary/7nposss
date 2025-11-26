@@ -549,6 +549,9 @@ def dashboard(request: HttpRequest):
             'avg_invoice_amount': avg_invoice_amount,                  # Average invoice amount
             'invoices_this_month_count': invoices_this_month_count,    # Number of invoices this month
             'revenue_by_branch_tsh': revenue_by_branch_tsh,
+            # Revenue breakdown by order type
+            'revenue_by_type': revenue_by_type,
+            'revenue_by_type_this_month': revenue_by_type_this_month,
             'upcoming_appointments': list(upcoming_appointments.values('id', 'customer__full_name', 'created_at')),
             'top_customers': list(top_customers.values('id', 'full_name', 'order_count', 'phone', 'email', 'total_spent', 'latest_order_date', 'registration_date')),
             'recent_orders': list(orders_qs.select_related("customer").exclude(status="completed").order_by("-created_at").values('id', 'customer__full_name', 'status', 'created_at')[:10]),
