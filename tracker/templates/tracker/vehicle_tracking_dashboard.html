@@ -328,8 +328,15 @@
 
 .period-tabs {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
     gap: 10px;
     margin-bottom: 20px;
+}
+
+.period-controls {
+    display: flex;
+    gap: 10px;
 }
 
 .period-tabs button {
@@ -350,6 +357,38 @@
 
 .period-tabs button:hover {
     border-color: var(--primary-color);
+}
+
+.view-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.view-btn {
+    padding: 10px 15px;
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 1rem;
+}
+
+.view-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.view-btn:hover {
+    border-color: var(--primary-color);
+}
+
+.advanced-metrics-section {
+    background: white;
+    padding: 20px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
 }
 
 .loading-spinner {
