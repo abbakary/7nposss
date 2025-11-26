@@ -103,7 +103,7 @@ def get_revenue_by_order_type_this_month():
 
 def get_revenue_by_order_type_all_time():
     """Get revenue breakdown by order type for all time."""
-    invoices_qs = Invoice.objects.filter(status__in=['issued', 'paid'])
+    invoices_qs = Invoice.objects.filter(status__in=['draft', 'issued', 'paid'])
     return get_revenue_by_order_type(invoices_qs)
 
 
