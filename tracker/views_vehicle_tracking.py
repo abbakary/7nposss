@@ -420,7 +420,7 @@ def api_vehicle_tracking_data(request):
                 vehicle_data.append(vehicle_dict)
 
         vehicle_data.sort(key=lambda x: x['total_spent'], reverse=True)
-        logger.info(f"Final vehicle_data count: {len(vehicle_data)}")
+        logger.info(f"Final vehicle_data count: {len(vehicle_data)}, Buckets count: {len(buckets) if buckets else 0}")
 
         # Calculate revenue breakdown by order type for the selected date range
         revenue_by_type = {
