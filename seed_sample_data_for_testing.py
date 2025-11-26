@@ -279,10 +279,16 @@ def create_sample_data():
             order = Order.objects.create(**order_data)
             orders_by_status[status].append(order)
             
-            # Update customer visit tracking
-            customer.total_visits = (customer.total_visits or 0) + 1
+            # Update customer visit tracking using the proper service method
+            # This ensures visits are counted per day, not per order
             customer.last_visit = created_at
-            customer.save(update_fields=['total_visits', 'last_visit'])
+            customer.arrival_time = created_at
+            customer.current_status = 'arrived'
+            customer.save(update_fields=['last_visit', 'arrival_time', 'current_status'])
+
+            # Use CustomerService to handle daily visit counting correctly
+            from tracker.services import CustomerService
+            CustomerService.update_customer_visit(customer)
             
             status_display = status.replace('_', ' ').upper().ljust(12)
             print(f"{order_num:2d}. {order.order_number:20s} | {customer.full_name:25s} | {status_display} | {order_type.upper()}")
