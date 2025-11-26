@@ -1572,9 +1572,45 @@
 (function(){
   const exceeds9Hours = {{ exceeds_9_hours|lower }};
   const delayReasonsByCategoryJson = {
-    {% for category, reasons in delay_reasons_by_category.items %}
-      '{{ category }}': {{ reasons|safe }},
-    {% endfor %}
+    'parts': [
+      { id: 1, reason_text: 'Spare parts out of stock' },
+      { id: 2, reason_text: 'Incorrect part delivered or mismatch with vehicle model' },
+      { id: 3, reason_text: 'Delayed parts shipment from supplier' },
+      { id: 4, reason_text: 'Need for special-order parts (rare or imported)' },
+    ],
+    'technical': [
+      { id: 5, reason_text: 'Unexpected faults discovered during routine service' },
+      { id: 6, reason_text: 'Complex diagnostics needed (electrical issues, sensor faults, ECU problems)' },
+      { id: 7, reason_text: 'Need for specialist technician to inspect certain problems' },
+      { id: 8, reason_text: 'Software updates or reprogramming taking longer' },
+    ],
+    'workload': [
+      { id: 9, reason_text: 'High number of vehicles in queue' },
+      { id: 10, reason_text: 'Insufficient technicians available (leave, training, or peak hours)' },
+      { id: 11, reason_text: 'Workshop overload due to special promotions or seasonal rush' },
+      { id: 12, reason_text: 'Equipment or service bay not available' },
+    ],
+    'customer': [
+      { id: 13, reason_text: 'Customer delayed approval for additional repairs or parts' },
+      { id: 14, reason_text: 'Inaccurate information provided about the issue' },
+      { id: 15, reason_text: 'Late vehicle drop-off vs. scheduled time' },
+    ],
+    'administrative': [
+      { id: 16, reason_text: 'POS system or billing delays' },
+      { id: 17, reason_text: 'Job order not updated correctly' },
+      { id: 18, reason_text: 'Miscommunication between front desk and workshop' },
+      { id: 19, reason_text: 'Warranty validation delays' },
+    ],
+    'quality': [
+      { id: 20, reason_text: 'Extended road testing required' },
+      { id: 21, reason_text: 'Rechecking after repair for safety or accuracy' },
+      { id: 22, reason_text: 'Final inspection backlog' },
+    ],
+    'external': [
+      { id: 23, reason_text: 'Power outage' },
+      { id: 24, reason_text: 'Bad weather affecting testing (e.g., rain for brake tests)' },
+      { id: 25, reason_text: 'Transport limitations (for outsourced tasks like painting)' },
+    ],
   };
 
   const delayReasonCategory = document.getElementById('delayReasonCategory');
