@@ -1,0 +1,1444 @@
+{% extends 'tracker/base.html' %}
+{% load static custom_filters tz %}
+
+{% block title %}Order {{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="page-title">
+    <div class="row">
+      <div class="col-md-8">
+        <h4>
+          <i class="fa fa-play me-2"></i>Order {{ order.order_number }}
+          {% if vehicle %}
+            <small class="text-muted ms-2"><i class="fa fa-car"></i> {{ vehicle.plate_number }}</small>
+          {% endif %}
+        </h4>
+      </div>
+      <div class="col-md-4">
+        <ol class="breadcrumb justify-content-end">
+          <li class="breadcrumb-item"><a href="{% url 'tracker:dashboard' %}"><i class="fa fa-home"></i></a></li>
+          <li class="breadcrumb-item"><a href="{% url 'tracker:started_orders_dashboard' %}">Started Orders</a></li>
+          <li class="breadcrumb-item active">{{ order.order_number }}</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      <div class="card shadow-sm border-left border-4" style="border-left-color: #667eea;">
+        <div class="card-body py-3">
+          <div class="row align-items-center">
+            <div class="col-md-6">
+              <p class="mb-2"><strong>Status:</strong> <span class="badge bg-secondary">Started</span></p>
+              <p class="mb-0"><strong>Started:</strong> <span class="text-muted">{{ order.started_at|date:"M d, Y H:i" }}</span></p>
+            </div>
+            <div class="col-md-6 text-md-end">
+              <p class="mb-2"><strong>Type:</strong> 
+                {% if order.type == 'service' %}
+                  <span class="badge bg-primary"><i class="fa fa-wrench me-1"></i>Service</span>
+                {% elif order.type == 'sales' %}
+                  <span class="badge bg-success"><i class="fa fa-shopping-cart me-1"></i>Sales</span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ order.type }}</span>
+                {% endif %}
+              </p>
+              <p class="mb-0"><strong>Progress:</strong> <span class="text-muted">Step 1 of 3</span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Action Buttons -->
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-3 justify-content-center">
+            <!-- Customer and Vehicle Info -->
+            <div class="btn-group" role="group">
+              <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#editDetailsModal" onclick="setEditMode('customer')">
+                <i class="fa fa-user me-2"></i>Customer Info
+              </button>
+              {% if vehicle %}
+              <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#editDetailsModal" onclick="setEditMode('vehicle')">
+                <i class="fa fa-car me-2"></i>Vehicle Info
+              </button>
+              {% endif %}
+            </div>
+
+            <!-- Order Management -->
+            <div class="btn-group" role="group">
+              <button type="button" id="uploadInvoiceBtn" class="btn btn-primary">
+                <i class="fa fa-file-upload me-2"></i>Upload Invoice
+              </button>
+              <button type="button" id="editOrderDetailsBtn" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editOrderDetailsModal">
+                <i class="fa fa-list me-2"></i>Edit Details
+              </button>
+              <button type="button" id="addItemServiceBtn" class="btn btn-outline-info">
+                <i class="fa fa-plus-circle me-2"></i>Add Item/Service
+              </button>
+            </div>
+
+            <!-- Complete Order -->
+            <button type="button" id="completeOrderBtn" class="btn btn-success">
+              <i class="fa fa-check me-2"></i>Complete Order
+            </button>
+          </div>
+
+          <!-- Overrun Reason Modal -->
+          <div class="modal fade" id="overrunReasonModal" tabindex="-1">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                  <h5 class="modal-title">Order Overrun Reason</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <p class="mb-2">This service order has exceeded the expected time. Please provide a reason before completing.</p>
+                  <div class="mb-3">
+                    <label class="form-label">Reason</label>
+                    <textarea id="overrunReasonInput" class="form-control" rows="4" placeholder="Explain why this order exceeded its ETA (required)"></textarea>
+                    <div id="overrunReasonError" class="text-danger mt-2" style="display:none;"></div>
+                  </div>
+                </div>
+                <div class="modal-footer bg-light">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="button" id="saveOverrunReasonBtn" class="btn btn-warning">Save & Continue to Complete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal fade" id="branchMismatchModal" tabindex="-1">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                  <h5 class="modal-title">Branch Mismatch</h5>
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <p class="mb-2">You are viewing an order for <strong>{{ order.branch.name }}</strong> while your branch is <strong>{{ user_branch.name }}</strong>.</p>
+                  <p class="mb-0">Proceed only if you intend to work on this cross-branch order.</p>
+                </div>
+                <div class="modal-footer bg-light">
+                  <a href="{% url 'tracker:started_orders_dashboard' %}" class="btn btn-outline-secondary">Back to Started Orders</a>
+                  <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Continue</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Invoice Upload Modal (Shared/Reusable) -->
+          {% include 'tracker/partials/invoice_upload_modal.html' %}
+
+          <!-- Legacy Script Support - Keep for backward compatibility -->
+          <script>
+            document.addEventListener('DOMContentLoaded', function(){
+              try {
+                var mismatch = {{ branch_mismatch|yesno:'true,false' }};
+                if (mismatch) {
+                  var bmEl = document.getElementById('branchMismatchModal');
+                  if (bmEl) { new bootstrap.Modal(bmEl).show(); }
+                }
+              } catch(e){}
+              // Legacy script initialization
+            });
+          </script>
+
+          <!-- Removed: Inline modal - Now using shared partial -->
+          {% comment %}
+          <div class="modal fade" id="uploadInvoiceModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl">
+              <div class="modal-content">
+                <div class="modal-header bg-light border-bottom">
+                  <h5 class="modal-title">
+                    <i class="fa fa-file-invoice me-2"></i>Create Invoice for Order {{ order.order_number }}
+                  </h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <form id="manualInvoiceForm" method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="create_invoice_manual">
+                  <input type="hidden" name="selected_order_id" value="{{ order.id }}">
+                  {% if vehicle and vehicle.plate_number %}<input type="hidden" name="plate" value="{{ vehicle.plate_number }}">{% endif %}
+                  {% if order.customer %}<input type="hidden" name="pre_selected_customer_id" value="{{ order.customer.id }}">{% endif %}
+
+                  <!-- Hidden fields for additional details -->
+                  <input type="hidden" name="payment_method" id="hiddenPaymentMethod" value="">
+                  <input type="hidden" name="delivery_terms" id="hiddenDeliveryTerms" value="">
+                  <input type="hidden" name="attended_by" id="hiddenAttendedBy" value="">
+                  <input type="hidden" name="kind_attention" id="hiddenKindAttention" value="">
+                  <input type="hidden" name="remarks" id="hiddenRemarks" value="">
+                  <input type="hidden" name="notes" id="hiddenNotes" value="">
+
+                  <!-- Quick Info Bar -->
+                  <div class="alert alert-info mb-3 border-0" role="alert">
+                    <div class="d-flex align-items-center">
+                      <i class="fa fa-lightbulb me-3" style="font-size: 18px;"></i>
+                      <div>
+                        <strong>Tip:</strong> Upload a PDF invoice to auto-extract data, or fill in the form manually. All fields are editable.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <!-- Upload Section -->
+                    <div class="card mb-3">
+                      <div class="card-header bg-light">
+                        <strong><i class="fa fa-file-upload me-2"></i>Upload PDF (Optional)</strong>
+                      </div>
+                      <div class="card-body">
+                        <div class="mb-3">
+                          <label class="form-label">Select PDF File</label>
+                          <input type="file" id="startedOrderInvoiceFile" class="form-control" accept=".pdf" data-max-file-size="50485760">
+                          <small class="text-muted">PDF files only. Max 50MB. Leave empty to enter data manually.</small>
+                        </div>
+
+                        <div id="startedUploadError" class="alert alert-danger" style="display:none" role="alert"></div>
+                        <div id="extractionSuccess" class="alert alert-success" style="display:none" role="alert">
+                          <i class="fa fa-check-circle me-2"></i>Data extracted successfully! The form below has been auto-populated.
+                        </div>
+                        <div id="startedUploadProgress" class="progress" style="display:none;">
+                          <div class="progress-bar progress-bar-striped progress-bar-animated" id="startedUploadProgressBar" role="progressbar" style="width: 0%"></div>
+                        </div>
+
+                        <button type="button" id="startedUploadBtn" class="btn btn-primary">
+                          <i class="fa fa-upload me-2"></i>Upload & Extract
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Extracted Data Preview -->
+                    <div id="uploadedInvoicePreview" style="display:none;" class="card mb-3">
+                      <div class="card-header bg-light">
+                        <strong><i class="fa fa-check-circle me-2 text-success"></i>Extracted Data Preview</strong>
+                        <small class="text-muted ms-2">Edit the fields below as needed</small>
+                      </div>
+                      <div class="card-body" style="max-height: 300px; overflow-y: auto; background-color: #f8f9fa;">
+                        <div class="row g-2">
+                          <div class="col-md-6">
+                            <small class="text-muted d-block">Customer Name</small>
+                            <p id="previewCustomerName" class="mb-2">-</p>
+                          </div>
+                          <div class="col-md-6">
+                            <small class="text-muted d-block">Phone</small>
+                            <p id="previewCustomerPhone" class="mb-2">-</p>
+                          </div>
+                          <div class="col-md-6">
+                            <small class="text-muted d-block">Email</small>
+                            <p id="previewCustomerEmail" class="mb-2">-</p>
+                          </div>
+                          <div class="col-md-6">
+                            <small class="text-muted d-block">Address</small>
+                            <p id="previewCustomerAddress" class="mb-2">-</p>
+                          </div>
+                          <div class="col-md-6">
+                            <small class="text-muted d-block">Invoice Number</small>
+                            <p id="previewInvoiceNo" class="mb-2"><strong>-</strong></p>
+                          </div>
+                          <div class="col-md-6">
+                            <small class="text-muted d-block">Invoice Date</small>
+                            <p id="previewInvoiceDate" class="mb-2"><strong>-</strong></p>
+                          </div>
+                          <div class="col-md-4">
+                            <small class="text-muted d-block">Subtotal</small>
+                            <p id="previewSubtotal" class="mb-0">-</p>
+                          </div>
+                          <div class="col-md-4">
+                            <small class="text-muted d-block">Tax/VAT</small>
+                            <p id="previewTax" class="mb-0">-</p>
+                          </div>
+                          <div class="col-md-4">
+                            <small class="text-muted d-block">Total</small>
+                            <p id="previewTotal" class="mb-0 fs-6"><strong>-</strong></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Existing Customer Alert -->
+                    <div id="existingCustomerAlert" class="alert alert-info alert-dismissible fade show mb-3" style="display:none;">
+                      <i class="fa fa-info-circle me-2"></i>
+                      <strong>Existing Customer Found!</strong> A customer with this phone number already exists.
+                      <span id="existingCustomerName"></span>
+                      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+
+                    <!-- Customer Information Section -->
+                    <div class="card mb-3">
+                      <div class="card-header bg-light">
+                        <strong><i class="fa fa-user me-2"></i>Customer Information</strong>
+                      </div>
+                      <div class="card-body">
+                        <div class="row mb-2">
+                          <div class="col-md-6">
+                            <label class="form-label">Full Name *</label>
+                            <input type="text" name="customer_name" class="form-control" id="manualCustomerName" value="{{ order.customer.full_name }}" placeholder="Customer full name" required>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label">Phone <small class="text-muted">(optional)</small></label>
+                            <input type="tel" name="customer_phone" class="form-control" id="manualCustomerPhone" placeholder="Phone number">
+                          </div>
+                        </div>
+                        <div class="row mb-2">
+                          <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" name="customer_email" class="form-control" placeholder="email@example.com">
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label">Customer Type *</label>
+                            <select name="customer_type" id="invoiceCustomerType" class="form-select" required>
+                              <option value="">Select customer type</option>
+                              <option value="personal">Personal</option>
+                              <option value="company">Private Company</option>
+                              <option value="ngo">NGO</option>
+                              <option value="government">Government</option>
+                            </select>
+                          </div>
+                        </div>
+                        
+                        <!-- Personal Subtype (shown only for personal type) -->
+                        <div class="row mb-2" id="personalSubtypeWrapper" style="display:none;">
+                          <div class="col-md-6">
+                            <label class="form-label">Personal Subtype</label>
+                            <select name="customer_personal_subtype" class="form-select">
+                              <option value="">Select subtype</option>
+                              <option value="owner">Owner</option>
+                              <option value="driver">Driver</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <!-- Organization Fields (shown for non-personal types) -->
+                        <div class="row mb-2" id="organizationDetailsWrapper" style="display:none;">
+                          <div class="col-md-6">
+                            <label class="form-label">Organization Name</label>
+                            <input type="text" name="customer_organization_name" class="form-control" id="organizationNameField" placeholder="Organization name">
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label">Tax Number</label>
+                            <input type="text" name="customer_tax_number" class="form-control" id="taxNumberField" placeholder="Tax identification number">
+                          </div>
+                        </div>
+
+                        <div class="row mb-2">
+                          <div class="col-md-12">
+                            <label class="form-label">Address</label>
+                            <input type="text" name="customer_address" class="form-control" placeholder="Customer address">
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Invoice Information Section -->
+                    <div class="card mb-3">
+                      <div class="card-header bg-light">
+                        <strong><i class="fa fa-file-invoice me-2"></i>Invoice Information</strong>
+                      </div>
+                      <div class="card-body">
+                        <div class="row mb-2">
+                          <div class="col-md-6">
+                            <label class="form-label fw-bold">Invoice Number</label>
+                            <input type="text" name="invoice_number" class="form-control" placeholder="e.g., INV-001">
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label fw-bold">Invoice Date</label>
+                            <input type="date" name="invoice_date" class="form-control" value="{% now 'Y-m-d' %}" required>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Payment Information Section -->
+                    <div class="card mb-3">
+                      <div class="card-header bg-light">
+                        <strong><i class="fa fa-money me-2"></i>Payment Information</strong>
+                      </div>
+                      <div class="card-body">
+                        <div class="row mb-2">
+                          <div class="col-md-6">
+                            <label class="form-label fw-bold">Subtotal</label>
+                            <div class="input-group">
+                              <span class="input-group-text">{{ order.branch.code|default:"TSH" }}</span>
+                              <input type="number" name="subtotal" class="form-control" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label fw-bold">Tax/VAT</label>
+                            <div class="input-group">
+                              <span class="input-group-text">{{ order.branch.code|default:"TSH" }}</span>
+                              <input type="number" name="tax_amount" class="form-control" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="row mb-2">
+                          <div class="col-md-12">
+                            <label class="form-label fw-bold">Total Amount *</label>
+                            <div class="input-group">
+                              <span class="input-group-text">{{ order.branch.code|default:"TSH" }}</span>
+                              <input type="number" name="total_amount" class="form-control" step="0.01" min="0" placeholder="0.00" required>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="modal-footer" style="border-top: 1px solid #dee2e6; padding: 20px; background: #f8f9fa;">
+                    <div class="text-center w-100 mb-3">
+                      <p class="text-muted small mb-0">
+                        <i class="fa fa-info-circle me-1"></i>
+                        Fill in the required fields (marked with *), then click the button below to create the invoice.
+                      </p>
+                    </div>
+                    <div class="w-100 d-flex gap-2" style="margin-top: -15px;">
+                      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                        <i class="fa fa-times me-2"></i>Cancel
+                      </button>
+                      <button type="submit" class="btn btn-success btn-lg flex-grow-1" style="font-weight: 600;">
+                        <i class="fa fa-check-circle me-2"></i>Create Invoice
+                      </button>
+                    </div>
+                  </div>
+                </form>
+          </div>
+          </div>
+          </div>
+
+          {% endcomment %}
+          
+          <!-- Edit Order Details Modal -->
+          <div class="modal fade" id="editOrderDetailsModal" tabindex="-1">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                  <h5 class="modal-title"><i class="fa fa-list me-2"></i>Edit Order Details</h5>
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="orderDetailsForm" method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="update_order_details">
+                  <div class="modal-body">
+                    <!-- Item Selection for Sales Orders -->
+                    <div id="itemSelectionSection" class="mb-3" style="display:none;">
+                      <label class="form-label fw-bold">Select Item</label>
+                      <select id="editOrderItemSelect" name="item_id" class="form-select mb-2">
+                        <option value="">Loading items...</option>
+                      </select>
+                      <div class="row g-2">
+                        <div class="col-md-6">
+                          <label class="form-label">Brand</label>
+                          <input type="text" id="editOrderBrand" name="item_brand" class="form-control" readonly>
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label">Quantity</label>
+                          <input type="number" id="editOrderQuantity" name="item_quantity" class="form-control" value="1" min="1">
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Duration -->
+                    <div class="mb-3">
+                      <label class="form-label fw-bold">Estimated Duration (minutes)</label>
+                      <input type="number" name="estimated_duration" id="orderEstimatedDuration" class="form-control" value="{{ order.estimated_duration|default:'' }}" min="0">
+                    </div>
+                    <div class="mb-2 text-muted small" id="editOrderHelpText">Update the order details as needed.</div>
+                  </div>
+                  <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <script>
+            // Safe querySelectorAll function with null check
+            function safeQuerySelectorAll(selector, context) {
+              const element = context ? context.querySelectorAll(selector) : document.querySelectorAll(selector);
+              return element || [];
+            }
+
+            // Customer type visibility toggle
+            const customerTypeEl = document.getElementById('invoiceCustomerType');
+            const personalSubtypeWrapper = document.getElementById('personalSubtypeWrapper');
+            const organizationDetailsWrapper = document.getElementById('organizationDetailsWrapper');
+
+            if (customerTypeEl) {
+              function updateCustomerTypeFields() {
+                const selectedType = customerTypeEl.value;
+                
+                if (selectedType === 'personal') {
+                  if (personalSubtypeWrapper) personalSubtypeWrapper.style.display = 'block';
+                  if (organizationDetailsWrapper) organizationDetailsWrapper.style.display = 'none';
+                } else if (selectedType && ['company', 'ngo', 'government'].includes(selectedType)) {
+                  if (personalSubtypeWrapper) personalSubtypeWrapper.style.display = 'none';
+                  if (organizationDetailsWrapper) organizationDetailsWrapper.style.display = 'block';
+                } else {
+                  if (personalSubtypeWrapper) personalSubtypeWrapper.style.display = 'none';
+                  if (organizationDetailsWrapper) organizationDetailsWrapper.style.display = 'none';
+                }
+              }
+
+              customerTypeEl.addEventListener('change', updateCustomerTypeFields);
+              updateCustomerTypeFields();
+            }
+
+            // Modal and form handling
+            document.addEventListener('DOMContentLoaded', function(){
+              if (typeof getCSRFToken !== 'function') {
+                window.getCSRFToken = function(){
+                  const name='csrftoken';
+                  const cookies=document.cookie?document.cookie.split(';'):[];
+                  for(let i=0;i<cookies.length;i++){const c=cookies[i].trim();if(c.substring(0,name.length+1)===(name+'=')){return decodeURIComponent(c.substring(name.length+1));}}
+                  return '';
+                };
+              }
+              const uploadBtn = document.getElementById('uploadInvoiceBtn');
+              const modalEl = document.getElementById('uploadInvoiceModal');
+              const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+
+              // Upload elements
+              const fileInput = document.getElementById('startedOrderInvoiceFile');
+              const startedUploadBtn = document.getElementById('startedUploadBtn');
+              const startedUploadError = document.getElementById('startedUploadError');
+              const extractionSuccess = document.getElementById('extractionSuccess');
+              const uploadProgress = document.getElementById('startedUploadProgress');
+              const uploadProgressBar = document.getElementById('startedUploadProgressBar');
+              const uploadedInvoicePreview = document.getElementById('uploadedInvoicePreview');
+
+              // Manual form elements
+              const manualForm = document.getElementById('manualInvoiceForm');
+              const manualCustomerPhone = document.getElementById('manualCustomerPhone');
+              const existingCustomerAlert = document.getElementById('existingCustomerAlert');
+              const existingCustomerName = document.getElementById('existingCustomerName');
+
+              let extractedInvoiceData = null;
+
+              function getCSRF() {
+                return getCSRFToken() || '';
+              }
+
+              function showError(message, isDanger = true) {
+                if (startedUploadError) {
+                  startedUploadError.style.display = 'block';
+                  startedUploadError.innerHTML = message;
+                  startedUploadError.className = isDanger ? 'alert alert-danger' : 'alert alert-warning';
+                }
+                if (extractionSuccess) extractionSuccess.style.display = 'none';
+              }
+
+              function showSuccess(message) {
+                if (extractionSuccess) {
+                  extractionSuccess.style.display = 'block';
+                  extractionSuccess.innerHTML = message;
+                }
+                if (startedUploadError) startedUploadError.style.display = 'none';
+              }
+
+              function resetForm() {
+                if (fileInput) fileInput.value = '';
+                if (startedUploadError) startedUploadError.style.display = 'none';
+                if (extractionSuccess) extractionSuccess.style.display = 'none';
+                if (uploadProgress) uploadProgress.style.display = 'none';
+                if (uploadedInvoicePreview) uploadedInvoicePreview.style.display = 'none';
+                extractedInvoiceData = null;
+              }
+
+              function escapeHtml(text) {
+                if (!text) return '';
+                const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+                return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+              }
+
+              function cleanCustomerName(customerName) {
+                if (!customerName) return '';
+                let cleaned = customerName.trim();
+                const patterns = [
+                  /^customer\s*name\s*[:]?\s*/i,
+                  /^customer\s*[:]?\s*/i,
+                  /^name\s*[:]?\s*/i,
+                  /\s*customer\s*name\s*$/i,
+                  /\s*customer\s*$/i
+                ];
+                patterns.forEach(pattern => {
+                  cleaned = cleaned.replace(pattern, '');
+                });
+                return cleaned.replace(/^[:]\s*/, '').replace(/\s*[:]$/, '').replace(/\s+/g, ' ').trim();
+              }
+
+              function cleanExtractedHeader(header) {
+                if (!header) return {};
+                const cleanedHeader = {...header};
+                if (cleanedHeader.customer_name) cleanedHeader.customer_name = cleanCustomerName(cleanedHeader.customer_name);
+                if (cleanedHeader.phone) cleanedHeader.phone = cleanedHeader.phone.replace(/^(phone|tel|telephone|mobile|cell)[\s:]*/i, '').trim();
+                if (cleanedHeader.email) cleanedHeader.email = cleanedHeader.email.replace(/^(email|e-mail|mail)[\s:]*/i, '').trim();
+                if (cleanedHeader.address) cleanedHeader.address = cleanedHeader.address.replace(/^(address|location|addr)[\s:]*/i, '').trim();
+                if (cleanedHeader.invoice_no) cleanedHeader.invoice_no = cleanedHeader.invoice_no.replace(/^(invoice\s*(no|number|#)?[\s:]*)/i, '').trim();
+                return cleanedHeader;
+              }
+
+              function checkExistingCustomer(phone) {
+                if (!phone || phone.length < 5) {
+                  if (existingCustomerAlert) existingCustomerAlert.style.display = 'none';
+                  return;
+                }
+                fetch('/api/customers/check-exists/?phone=' + encodeURIComponent(phone), {
+                  headers: {'X-Requested-With': 'XMLHttpRequest'}
+                })
+                .then(r => r.json())
+                .then(data => {
+                  if (data.exists && data.customer) {
+                    if (existingCustomerAlert && existingCustomerName) {
+                      existingCustomerAlert.style.display = 'block';
+                      existingCustomerName.innerHTML = '<strong>' + escapeHtml(data.customer.full_name) + '</strong>';
+                    }
+                  } else {
+                    if (existingCustomerAlert) existingCustomerAlert.style.display = 'none';
+                  }
+                })
+                .catch(err => {
+                  console.debug('Error checking customer existence:', err);
+                });
+              }
+
+              if (manualCustomerPhone) {
+                manualCustomerPhone.addEventListener('change', function() {
+                  checkExistingCustomer(this.value);
+                });
+              }
+
+              if (uploadBtn) {
+                uploadBtn.addEventListener('click', function() {
+                  resetForm();
+                  const phoneInput = document.getElementById('manualCustomerPhone');
+                  if (phoneInput && phoneInput.value) { try { checkExistingCustomer(phoneInput.value); } catch(e){} }
+                  if (modal) modal.show();
+                });
+              }
+
+              if (startedUploadBtn) {
+                startedUploadBtn.addEventListener('click', async function() {
+                  if (startedUploadError) startedUploadError.style.display = 'none';
+                  if (extractionSuccess) extractionSuccess.style.display = 'none';
+
+                  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+                    showError('<i class="fa fa-warning me-2"></i>Please select a PDF file to upload.');
+                    return;
+                  }
+
+                  const file = fileInput.files[0];
+                  const maxSizeMB = 50;
+                  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+
+                  if (file.size > maxSizeBytes) {
+                    showError(`<i class="fa fa-warning me-2"></i>File is too large. Maximum size is ${maxSizeMB}MB.`);
+                    return;
+                  }
+
+                  if (!file.name.toLowerCase().endsWith('.pdf')) {
+                    showError('<i class="fa fa-warning me-2"></i>Please upload a PDF file.', false);
+                    return;
+                  }
+
+                  const fd = new FormData();
+                  fd.append('file', file);
+                  fd.append('selected_order_id', '{{ order.id }}');
+                  {% if vehicle and vehicle.plate_number %}
+                  fd.append('plate', '{{ vehicle.plate_number }}');
+                  {% endif %}
+
+                  startedUploadBtn.disabled = true;
+                  if (uploadProgress) {
+                    uploadProgress.style.display = 'block';
+                    if (uploadProgressBar) uploadProgressBar.style.width = '50%';
+                  }
+                  const originalBtnText = startedUploadBtn.innerHTML;
+                  startedUploadBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Extracting...';
+
+                  try {
+                    const extractResponse = await fetch('{% url "tracker:api_extract_invoice_preview" %}', {
+                      method: 'POST',
+                      body: fd,
+                      headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': getCSRF()
+                      },
+                      credentials: 'same-origin'
+                    });
+
+                    if (uploadProgressBar) uploadProgressBar.style.width = '100%';
+                    const extractData = await extractResponse.json();
+
+                    if (!extractData.success) {
+                      if (uploadProgress) uploadProgress.style.display = 'none';
+                      const errorMsg = extractData.message || 'Could not extract data from PDF.';
+                      showError(`<i class="fa fa-warning me-2"></i><strong>PDF could not be processed</strong><p class="small mt-2 mb-0">${errorMsg}</p>`, false);
+                      return;
+                    }
+
+                    if (extractData.header) {
+                      extractData.header = cleanExtractedHeader(extractData.header);
+                    }
+
+                    extractedInvoiceData = extractData;
+                    populateManualFormWithExtracted(extractData);
+                    showExtractedDataPreview(extractData.header, extractData.items);
+                    if (uploadProgress) uploadProgress.style.display = 'none';
+                    if (uploadProgressBar) uploadProgressBar.style.width = '0%';
+
+                    showSuccess('Invoice data extracted successfully! The form below has been auto-populated with editable fields.');
+                    if (uploadedInvoicePreview) uploadedInvoicePreview.style.display = 'block';
+
+                  } catch (err) {
+                    console.error('Upload error:', err);
+                    if (uploadProgress) uploadProgress.style.display = 'none';
+                    showError(`<i class="fa fa-exclamation-circle me-2"></i>Upload error: ${err && err.message ? err.message : 'Unknown error'}`);
+                  } finally {
+                    startedUploadBtn.disabled = false;
+                    startedUploadBtn.innerHTML = originalBtnText;
+                  }
+                });
+              }
+
+              function showExtractedDataPreview(header, items) {
+                const elements = {
+                  'previewCustomerName': header.customer_name || '-',
+                  'previewCustomerPhone': header.phone || '-',
+                  'previewCustomerEmail': header.email || '-',
+                  'previewCustomerAddress': header.address || '-',
+                  'previewInvoiceNo': header.invoice_no || '-',
+                  'previewInvoiceDate': header.date || '-',
+                  'previewCodeNo': header.code_no || '-',
+                  'previewReference': header.reference || '-',
+                  'previewSubtotal': (header.subtotal || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
+                  'previewTax': (header.tax || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
+                  'previewTotal': (header.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})
+                };
+
+                Object.keys(elements).forEach(id => {
+                  const el = document.getElementById(id);
+                  if (el) el.textContent = elements[id];
+                });
+
+                if (uploadedInvoicePreview) uploadedInvoicePreview.style.display = 'block';
+                renderExtractedItems(items || []);
+              }
+
+              function populateManualFormWithExtracted(data) {
+                const header = data.header || {};
+
+                if (manualForm) {
+                  const fields = {
+                    'customer_name': header.customer_name,
+                    'customer_phone': header.phone,
+                    'customer_email': header.email,
+                    'customer_address': header.address,
+                    'invoice_number': header.invoice_no || header.code_no,
+                    'code_no': header.code_no,
+                    'reference': header.reference,
+                    'subtotal': header.subtotal,
+                    'tax_amount': header.tax,
+                    'total_amount': header.total
+                  };
+
+                  Object.keys(fields).forEach(name => {
+                    const input = manualForm.querySelector(`input[name="${name}"]`);
+                    if (input && fields[name]) input.value = fields[name];
+                  });
+
+                  const customerTypeField = manualForm.querySelector('select[name="customer_type"]');
+                  if (customerTypeField && header.customer_type) {
+                    customerTypeField.value = header.customer_type;
+                    customerTypeField.dispatchEvent(new Event('change'));
+                  }
+
+                  if (header.date) {
+                    const dateMatch = String(header.date).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                    const invoiceDateField = manualForm.querySelector('input[name="invoice_date"]');
+                    if (invoiceDateField && dateMatch) {
+                      invoiceDateField.value = dateMatch[3] + '-' + String(dateMatch[2]).padStart(2, '0') + '-' + String(dateMatch[1]).padStart(2, '0');
+                    }
+                  }
+                }
+              }
+
+              function renderExtractedItems(items) {
+                const section = document.getElementById('extractedLineItemsSection');
+                const tbody = document.getElementById('lineItemRowsBody');
+                if (!section || !tbody) return;
+                tbody.innerHTML = '';
+                const list = Array.isArray(items) ? items : [];
+                if (list.length === 0) {
+                  section.style.display = 'block';
+                  addLineItemRow();
+                  return;
+                }
+                list.forEach((it, idx) => {
+                  addLineItemRow(it, idx + 1);
+                });
+                section.style.display = 'block';
+              }
+
+              function addLineItemRow(item, sr) {
+                const tbody = document.getElementById('lineItemRowsBody');
+                if (!tbody) return;
+                const tr = document.createElement('tr');
+                const seq = sr || (tbody.children.length + 1);
+                const code = item && item.code ? item.code : '';
+                const desc = item && item.description ? item.description : '';
+                const unit = item && item.unit ? item.unit : '';
+                const qty = item && item.qty ? item.qty : 1;
+                const rate = item && (item.rate || item.value) ? (item.rate || item.value) : 0;
+                tr.innerHTML = `
+                  <td class="text-center align-middle">${seq}</td>
+                  <td><input type="text" name="item_code[]" class="form-control form-control-sm" value="${escapeHtml(String(code))}"></td>
+                  <td><input type="text" name="item_description[]" class="form-control form-control-sm" value="${escapeHtml(String(desc))}" required></td>
+                  <td><input type="text" name="item_unit[]" class="form-control form-control-sm" value="${escapeHtml(String(unit))}"></td>
+                  <td style="width:100px"><input type="number" name="item_qty[]" class="form-control form-control-sm" min="1" step="1" value="${Number(qty) || 1}" required></td>
+                  <td style="width:140px"><input type="number" name="item_price[]" class="form-control form-control-sm" min="0" step="0.01" value="${Number(rate) || 0}"></td>
+                  <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-line-item">&times;</button></td>
+                `;
+                tbody.appendChild(tr);
+              }
+
+              const addLineItemBtn = document.getElementById('addLineItemRowBtn');
+              if (addLineItemBtn) {
+                addLineItemBtn.addEventListener('click', function(){ addLineItemRow(); });
+              }
+
+              document.addEventListener('click', function(e){
+                const btn = e.target.closest('.remove-line-item');
+                if (!btn) return;
+                const row = btn.closest('tr');
+                if (!row) return;
+                const tbody = document.getElementById('lineItemRowsBody');
+                row.remove();
+                Array.from(tbody.children).forEach((tr, i) => {
+                  const cell = tr.querySelector('td:first-child');
+                  if (cell) cell.textContent = String(i + 1);
+                });
+              });
+
+              if (manualForm) {
+                manualForm.addEventListener('submit', async function(e) {
+                  e.preventDefault();
+
+                  const customerName = this.querySelector('input[name="customer_name"]');
+                  const customerType = this.querySelector('select[name="customer_type"]');
+                  const totalAmount = this.querySelector('input[name="total_amount"]');
+
+                  if (!customerName || !customerName.value.trim() ||
+                      !customerType || !customerType.value.trim() ||
+                      !totalAmount || !totalAmount.value.trim()) {
+                    showError('<i class="fa fa-warning me-2"></i>Please fill in customer name, customer type, and total amount.');
+                    return;
+                  }
+
+                  const fd = new FormData(this);
+                  if (typeof fileInput !== 'undefined' && fileInput && fileInput.files && fileInput.files[0]) {
+                    fd.append('file', fileInput.files[0]);
+                  }
+
+                  const submitBtn = this.querySelector('button[type="submit"]');
+                  const originalBtnText = submitBtn.innerHTML;
+                  submitBtn.disabled = true;
+                  if (uploadProgress) {
+                    uploadProgress.style.display = 'block';
+                    if (uploadProgressBar) uploadProgressBar.style.width = '50%';
+                  }
+
+                  try {
+                    const response = await fetch('{% url "tracker:api_create_invoice_from_upload" %}', {
+                      method: 'POST',
+                      body: fd,
+                      headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': getCSRF()
+                      }
+                    });
+
+                    if (uploadProgressBar) uploadProgressBar.style.width = '100%';
+                    const result = await response.json();
+
+                    if (result.success) {
+                      showSuccess('<i class="fa fa-check-circle me-2"></i>Invoice created successfully! Redirecting...');
+                      setTimeout(function() {
+                        window.location.href = result.redirect_url || ('/tracker/invoices/' + result.invoice_id + '/');
+                      }, 1000);
+                    } else {
+                      showError(`<i class="fa fa-exclamation-circle me-2"></i>${result.message || 'Failed to create invoice'}`);
+                      if (uploadProgress) uploadProgress.style.display = 'none';
+                      if (uploadProgressBar) uploadProgressBar.style.width = '0%';
+                    }
+                  } catch (err) {
+                    console.error('Form submission error:', err);
+                    showError(`<i class="fa fa-exclamation-circle me-2"></i>Error: ${err.message}`);
+                    if (uploadProgress) uploadProgress.style.display = 'none';
+                    if (uploadProgressBar) uploadProgressBar.style.width = '0%';
+                  } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
+                  }
+                });
+              }
+
+              if (modalEl) {
+                modalEl.addEventListener('hidden.bs.modal', function() {
+                  resetForm();
+                });
+              }
+            });
+          </script>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Navigation -->
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+        <i class="fa fa-eye me-2"></i>Overview
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
+        <i class="fa fa-file me-2"></i>Documents <span class="badge bg-danger ms-1">{{ documents.count }}</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab">
+        <i class="fa fa-list me-2"></i>Order Details
+      </button>
+    </li>
+  </ul>
+
+  <!-- Tab Content -->
+  <div class="tab-content">
+    <!-- Overview Tab -->
+    <div class="tab-pane fade show active" id="overview">
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="card shadow-sm">
+            <div class="card-header bg-light">
+              <h6 class="mb-0"><i class="fa fa-user me-2"></i>Customer Information</h6>
+            </div>
+            <div class="card-body">
+              <div class="list-group list-group-flush">
+                <div class="list-group-item px-0">
+                  <small class="text-muted d-block">Name</small>
+                  <strong>{{ customer.full_name }}</strong>
+                </div>
+                <div class="list-group-item px-0">
+                  <small class="text-muted d-block">Phone</small>
+                  <strong><a href="tel:{{ customer.phone }}">{{ customer.phone }}</a></strong>
+                </div>
+                {% if customer.email %}
+                <div class="list-group-item px-0">
+                  <small class="text-muted d-block">Email</small>
+                  <strong><a href="mailto:{{ customer.email }}">{{ customer.email }}</a></strong>
+                </div>
+                {% endif %}
+                {% if customer.address %}
+                <div class="list-group-item px-0">
+                  <small class="text-muted d-block">Address</small>
+                  <strong>{{ customer.address }}</strong>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card shadow-sm">
+            <div class="card-header bg-light">
+              <h6 class="mb-0"><i class="fa fa-car me-2"></i>Vehicle Information</h6>
+            </div>
+            <div class="card-body">
+              {% if vehicle %}
+              <div class="list-group list-group-flush">
+                <div class="list-group-item px-0">
+                  <small class="text-muted d-block">Plate Number</small>
+                  <strong>{{ vehicle.plate_number }}</strong>
+                </div>
+                {% if vehicle.make %}
+                <div class="list-group-item px-0">
+                  <small class="text-muted d-block">Make</small>
+                  <strong>{{ vehicle.make }}</strong>
+                </div>
+                {% endif %}
+                {% if vehicle.model %}
+                <div class="list-group-item px-0">
+                  <small class="text-muted d-block">Model</small>
+                  <strong>{{ vehicle.model }}</strong>
+                </div>
+                {% endif %}
+                {% if vehicle.vehicle_type %}
+                <div class="list-group-item px-0">
+                  <small class="text-muted d-block">Type</small>
+                  <strong>{{ vehicle.vehicle_type }}</strong>
+                </div>
+                {% endif %}
+              </div>
+              {% else %}
+              <div class="alert alert-warning" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"></i>No vehicle information
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Documents Tab -->
+    <div class="tab-pane fade" id="documents">
+      <!-- Document Upload Section -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+          <h6 class="mb-0"><i class="fa fa-cloud-upload me-2"></i>Upload Invoice/Document</h6>
+        </div>
+        <div class="card-body">
+          <form id="documentUploadForm" enctype="multipart/form-data">
+            <div class="mb-3">
+              <label class="form-label">Select Document (PDF preferred)</label>
+              <div class="input-group">
+                <input type="file" id="documentUploadInput" name="document" accept=".pdf,.txt,.png,.jpg,.jpeg" class="form-control" required>
+                <button class="btn btn-primary" type="button" id="uploadDocumentBtn" onclick="uploadDocument()">
+                  <i class="fa fa-upload me-1"></i>Upload & Extract
+                </button>
+              </div>
+              <small class="text-muted d-block mt-2">Supported formats: PDF (recommended), Text files, Images. System will extract customer, vehicle, and invoice details automatically.</small>
+            </div>
+            <div id="uploadProgressContainer" style="display:none;">
+              <div class="progress mb-2">
+                <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+              </div>
+              <small id="uploadStatusText" class="text-muted">Uploading and processing document...</small>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Uploaded Documents -->
+      {% if documents %}
+      <div class="row g-3">
+        {% for doc in documents %}
+        <div class="col-lg-6">
+          <div class="card shadow-sm h-100" data-extraction-id="{% if doc.extraction %}{{ doc.extraction.id }}{% else %}{% endif %}">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+              <div>
+                <h6 class="mb-1"><i class="fa fa-file-pdf me-2" style="color: #dc3545;"></i>{{ doc.file_name }}</h6>
+                <small class="text-muted">
+                  {{ doc.document_type|upper }} •{{ doc.uploaded_at|date:"M d, Y H:i" }}
+                </small>
+              </div>
+              <span class="badge bg-{% if doc.extraction_status == 'completed' %}success{% elif doc.extraction_status == 'processing' %}warning{% else %}danger{% endif %}">
+                {{ doc.extraction_status|title }}
+              </span>
+            </div>
+
+            <div class="card-body">
+              <p class="text-muted">Document uploaded.</p>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="alert alert-info text-center" role="alert">
+        <i class="fa fa-info-circle me-2"></i>
+        <strong>No documents uploaded yet.</strong> Upload an invoice or quotation to get started.
+      </div>
+      {% endif %}
+
+      <!-- Order Components Section -->
+      {% if order.components.exists %}
+      <div class="card shadow-sm mt-4">
+        <div class="card-header bg-gradient-info text-white">
+          <h6 class="mb-0"><i class="fa fa-layer-group me-2"></i>Additional Order Types</h6>
+          <small class="text-white-50">Multiple order types associated with this invoice</small>
+        </div>
+        <div class="card-body">
+          {% for component in order.components.all %}
+          <div class="component-item mb-3 p-3 border rounded" style="background-color: #f8f9fa;">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="flex-grow-1">
+                <div class="d-flex align-items-center mb-2">
+                  {% if component.type == 'service' %}
+                    <i class="fa fa-wrench text-primary me-2"></i>
+                    <span class="badge bg-primary">SERVICE ORDER</span>
+                  {% elif component.type == 'sales' %}
+                    <i class="fa fa-shopping-cart text-success me-2"></i>
+                    <span class="badge bg-success">SALES ORDER</span>
+                  {% else %}
+                    <span class="badge bg-secondary">{{ component.get_type_display|upper }}</span>
+                  {% endif %}
+                  <small class="text-muted ms-2">Added {{ component.added_at|localtime|date:"M j, Y g:i a" }}</small>
+                </div>
+                {% if component.reason %}
+                <div class="mt-2">
+                  <small class="text-muted d-block"><strong>Reason:</strong></small>
+                  <p class="mb-0 text-dark">{{ component.reason }}</p>
+                </div>
+                {% endif %}
+                {% if component.invoice %}
+                <div class="mt-2">
+                  <small class="text-muted d-block"><strong>Associated Invoice:</strong></small>
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="fa fa-file-pdf text-danger"></i>
+                    <a href="{% url 'tracker:invoice_detail' pk=component.invoice.id %}" class="text-decoration-none fw-medium">
+                      {{ component.invoice.invoice_number }}
+                    </a>
+                    <span class="badge bg-secondary">{{ component.invoice.total_amount|floatformat:2 }}</span>
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+              <div class="component-actions">
+                {% if component.signed_at %}
+                <span class="badge bg-success"><i class="fa fa-check me-1"></i>Signed</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Details Tab -->
+    <div class="tab-pane fade" id="details">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          {% if order.description %}
+          <div class="mb-3">
+            <small class="text-muted d-block">Description</small>
+            <strong>{{ order.description }}</strong>
+          </div>
+          {% endif %}
+          {% if order.estimated_duration %}
+          <div class="mb-3">
+            <small class="text-muted d-block">Estimated Duration</small>
+            <strong>{{ order.estimated_duration }} minutes</strong>
+          </div>
+          {% endif %}
+          {% if order.item_name %}
+          <div class="mb-3">
+            <small class="text-muted d-block">Item</small>
+            <strong>{{ order.item_name }}</strong>
+          </div>
+          {% endif %}
+          {% if order.brand %}
+          <div class="mb-3">
+            <small class="text-muted d-block">Brand</small>
+            <strong>{{ order.brand }}</strong>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Include Extraction Form Modal -->
+{% include 'tracker/modals/extraction_form_modal.html' %}
+
+<!-- Unified Edit Details Modal -->
+<div class="modal fade" id="editDetailsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-info text-white">
+        <h5 class="modal-title"><i class="fa fa-edit me-2"></i><span id="editTitle">Edit Details</span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <!-- Customer Edit Form -->
+      <form id="customerEditForm" method="post" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_customer">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Full Name</label>
+            <input type="text" name="full_name" class="form-control" value="{{ customer.full_name }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Phone</label>
+            <input type="tel" name="phone" class="form-control" value="{{ customer.phone }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Email</label>
+            <input type="email" name="email" class="form-control" value="{{ customer.email|default:'' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Address</label>
+            <textarea name="address" class="form-control" rows="2">{{ customer.address|default:'' }}</textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Customer Type</label>
+            <select name="customer_type" id="editCustomerType" class="form-select">
+              <option value="personal" {% if customer.customer_type == 'personal' %}selected{% endif %}>Personal</option>
+              <option value="company" {% if customer.customer_type == 'company' %}selected{% endif %}>Company</option>
+              <option value="government" {% if customer.customer_type == 'government' %}selected{% endif %}>Government</option>
+              <option value="ngo" {% if customer.customer_type == 'ngo' %}selected{% endif %}>NGO</option>
+            </select>
+          </div>
+          <div class="mb-3 {% if customer.customer_type != 'personal' %}d-none{% endif %}" id="editPersonalSubtypeField">
+            <label class="form-label fw-bold">Personal Subtype</label>
+            <select name="personal_subtype" class="form-select">
+              <option value="owner" {% if customer.personal_subtype == 'owner' %}selected{% endif %}>Owner</option>
+              <option value="driver" {% if customer.personal_subtype == 'driver' %}selected{% endif %}>Driver</option>
+            </select>
+          </div>
+          <div class="mb-3 {% if customer.customer_type == 'personal' %}d-none{% endif %}" id="editOrganizationField">
+            <label class="form-label fw-bold">Organization Name</label>
+            <input type="text" name="organization_name" class="form-control" value="{{ customer.organization_name|default:'' }}">
+          </div>
+          <div class="mb-3 {% if customer.customer_type == 'personal' %}d-none{% endif %}" id="editTaxField">
+            <label class="form-label fw-bold">Tax Number (TIN)</label>
+            <input type="text" name="tax_number" class="form-control" value="{{ customer.tax_number|default:'' }}">
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+
+      <!-- Vehicle Edit Form -->
+      {% if vehicle %}
+      <form id="vehicleEditForm" method="post" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_vehicle">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Plate Number</label>
+            <input type="text" class="form-control" value="{{ vehicle.plate_number }}" readonly>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Vehicle Type</label>
+            <input type="text" name="vehicle_type" class="form-control" value="{{ vehicle.vehicle_type|default:'' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Make</label>
+            <input type="text" name="make" class="form-control" value="{{ vehicle.make|default:'' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Model</label>
+            <input type="text" name="model" class="form-control" value="{{ vehicle.model|default:'' }}">
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+let currentEditMode = 'customer';
+
+function setEditMode(mode) {
+  currentEditMode = mode;
+
+  // Hide all forms
+  document.getElementById('customerEditForm').style.display = 'none';
+  if (document.getElementById('vehicleEditForm')) {
+    document.getElementById('vehicleEditForm').style.display = 'none';
+  }
+
+  // Show selected form
+  if (mode === 'customer') {
+    document.getElementById('editTitle').textContent = 'Edit Customer Information';
+    document.getElementById('customerEditForm').style.display = 'block';
+    // Initialize extra fields visibility when switching to customer form
+    if (typeof toggleCustomerExtraFields === 'function') { toggleCustomerExtraFields(); }
+  } else if (mode === 'vehicle') {
+    document.getElementById('editTitle').textContent = 'Edit Vehicle Information';
+    document.getElementById('vehicleEditForm').style.display = 'block';
+  }
+}
+
+// Dynamically show/hide fields based on customer type
+function toggleCustomerExtraFields(){
+  var sel = document.getElementById('editCustomerType');
+  var type = sel ? String(sel.value).toLowerCase() : '';
+  var personal = document.getElementById('editPersonalSubtypeField');
+  var org = document.getElementById('editOrganizationField');
+  var tax = document.getElementById('editTaxField');
+  if (personal) {
+    if (type === 'personal') { personal.classList.remove('d-none'); } else { personal.classList.add('d-none'); }
+  }
+  var showOrg = (type === 'company' || type === 'government' || type === 'ngo');
+  if (org) { if (showOrg) { org.classList.remove('d-none'); } else { org.classList.add('d-none'); } }
+  if (tax) { if (showOrg) { tax.classList.remove('d-none'); } else { tax.classList.add('d-none'); } }
+}
+
+// Attach change listener once DOM is ready
+document.addEventListener('DOMContentLoaded', function(){
+  var sel = document.getElementById('editCustomerType');
+  if (sel) {
+    sel.addEventListener('change', toggleCustomerExtraFields);
+    toggleCustomerExtraFields();
+  }
+  // Also wire up when the modal opens, to handle dynamic DOM/visibility
+  var editModal = document.getElementById('editDetailsModal');
+  if (editModal) {
+    editModal.addEventListener('shown.bs.modal', function(){
+      var typeSel = document.getElementById('editCustomerType');
+      if (typeSel) {
+        // avoid double-binding by removing existing then adding
+        typeSel.removeEventListener('change', toggleCustomerExtraFields);
+        typeSel.addEventListener('change', toggleCustomerExtraFields);
+        toggleCustomerExtraFields();
+      }
+    });
+  }
+});
+
+// Add Item/Service Logic
+document.addEventListener('DOMContentLoaded', function(){
+  const addItemServiceBtn = document.getElementById('addItemServiceBtn');
+  if (addItemServiceBtn) {
+    addItemServiceBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      if (typeof window.extractionFormModal !== 'undefined' && window.extractionFormModal) {
+        // Open the extraction modal
+        window.extractionFormModal.open();
+        // Skip to step 3 (Add Another Item/Service) directly
+        setTimeout(function() {
+          window.extractionFormModal.showStep(3);
+        }, 300);
+      } else {
+        // Fallback: show extraction modal manually
+        const modalEl = document.getElementById('extractionFormModal');
+        if (modalEl) {
+          const modal = new bootstrap.Modal(modalEl);
+          modal.show();
+        }
+      }
+    });
+  }
+});
+
+// Complete Order Logic
+document.addEventListener('DOMContentLoaded', function(){
+  const completeBtn = document.getElementById('completeOrderBtn');
+  if (!completeBtn) return;
+
+  const orderStarted = {{ order.started_at|default:'None'|yesno:'true,false' }};
+  const startedAtStr = '{{ order.started_at|date:"c" }}';
+  const estimatedDuration = {{ order.estimated_duration|default:'null' }};
+
+  function redirectToSignature(){
+    window.location.href = '{% url "tracker:order_detail" pk=order.id %}';
+  }
+
+  completeBtn.addEventListener('click', function(e){
+    const orderType = '{{ order.type|default:"" }}';
+
+    // Only check overrun for service and sales orders with estimated duration
+    if (orderType !== 'service' && orderType !== 'sales') {
+      redirectToSignature();
+      return;
+    }
+
+    // If no estimated duration, skip overrun check
+    if (!estimatedDuration) {
+      redirectToSignature();
+      return;
+    }
+
+    if (!startedAtStr) { redirectToSignature(); return; }
+    const startedAt = new Date(startedAtStr);
+    const now = new Date();
+    const elapsedMinutes = Math.floor((now - startedAt) / 60000);
+
+    // If elapsed time is within or under estimated duration, proceed to signature
+    if (elapsedMinutes <= (Number(estimatedDuration) || 0)){
+      redirectToSignature();
+      return;
+    }
+
+    // Exceeded ETA -> show modal to collect reason
+    const overrunModalEl = document.getElementById('overrunReasonModal');
+    const overrunModal = new bootstrap.Modal(overrunModalEl);
+    overrunModal.show();
+  });
+
+  // Save reason handler
+  const saveBtn = document.getElementById('saveOverrunReasonBtn');
+  if (saveBtn){
+    saveBtn.addEventListener('click', function(){
+      const reason = document.getElementById('overrunReasonInput').value.trim();
+      const errEl = document.getElementById('overrunReasonError');
+      errEl.style.display = 'none';
+      if (!reason){ errEl.textContent = 'Please enter a reason for the delay.'; errEl.style.display = ''; return; }
+
+      fetch('{% url "tracker:api_report_overrun" order_id=order.id %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCSRFToken() || '',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ reason: reason })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success){
+          const modalEl = document.getElementById('overrunReasonModal');
+          const modal = bootstrap.Modal.getInstance(modalEl);
+          if (modal) modal.hide();
+          redirectToSignature();
+        } else {
+          errEl.textContent = data.error || 'Failed to save reason'; errEl.style.display = '';
+        }
+      })
+      .catch(err => {
+        console.error('Error saving overrun reason', err);
+        errEl.textContent = 'Server error saving reason'; errEl.style.display = '';
+      });
+    });
+  }
+});
+
+
+</script>
+
+<!-- Extraction Form Modal JavaScript -->
+<script src="{% static 'js/extraction_form_modal.js' %}"></script>
+
+<script>
+  // Initialize extraction form modal for started orders
+  document.addEventListener('DOMContentLoaded', function() {
+    // Create hidden inputs for extraction modal to access
+    const orderTypeInput = document.createElement('input');
+    orderTypeInput.type = 'hidden';
+    orderTypeInput.name = 'order_type';
+    orderTypeInput.value = '{{ order.type|default:"service" }}';
+    document.body.appendChild(orderTypeInput);
+
+    const orderIdInput = document.createElement('input');
+    orderIdInput.type = 'hidden';
+    orderIdInput.name = 'order_id';
+    orderIdInput.value = '{{ order.id }}';
+    document.body.appendChild(orderIdInput);
+  });
+</script>
+
+{% endblock %}

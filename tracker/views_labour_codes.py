@@ -1,0 +1,420 @@
+import csv
+import io
+import logging
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib import messages
+from django.http import JsonResponse
+from django.db import transaction, models
+from django.views.decorators.http import require_http_methods
+from .models import LabourCode
+from .forms import LabourCodeForm, LabourCodeCSVImportForm
+
+logger = logging.getLogger(__name__)
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+
+
+@login_required
+@permission_required('tracker.view_labourcode', raise_exception=True)
+def labour_codes_list(request):
+    """List all labour codes with search and filter functionality"""
+    labour_codes = LabourCode.objects.all().order_by('code')
+    
+    # Search functionality
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        labour_codes = labour_codes.filter(
+            models.Q(code__icontains=search_query) |
+            models.Q(description__icontains=search_query) |
+            models.Q(category__icontains=search_query)
+        )
+    
+    # Filter by category
+    category_filter = request.GET.get('category', '').strip()
+    if category_filter:
+        labour_codes = labour_codes.filter(category__icontains=category_filter)
+    
+    # Filter by active status
+    active_filter = request.GET.get('active', '')
+    if active_filter == 'true':
+        labour_codes = labour_codes.filter(is_active=True)
+    elif active_filter == 'false':
+        labour_codes = labour_codes.filter(is_active=False)
+    
+    # Get distinct categories for filter dropdown
+    categories = LabourCode.objects.values_list('category', flat=True).distinct().order_by('category')
+    
+    context = {
+        'labour_codes': labour_codes,
+        'categories': categories,
+        'search_query': search_query,
+        'category_filter': category_filter,
+        'active_filter': active_filter,
+        'total_count': LabourCode.objects.count(),
+    }
+    
+    return render(request, 'tracker/labour_codes_list.html', context)
+
+
+@login_required
+@permission_required('tracker.add_labourcode', raise_exception=True)
+def labour_code_create(request):
+    """Create a new labour code manually"""
+    if request.method == 'POST':
+        form = LabourCodeForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Labour code {form.cleaned_data["code"]} created successfully!')
+            return redirect('tracker:labour_codes_list')
+    else:
+        form = LabourCodeForm()
+    
+    context = {
+        'form': form,
+        'title': 'Add Labour Code',
+        'action': 'Create',
+    }
+    return render(request, 'tracker/labour_code_form.html', context)
+
+
+@login_required
+@permission_required('tracker.change_labourcode', raise_exception=True)
+def labour_code_edit(request, pk):
+    """Edit an existing labour code"""
+    labour_code = get_object_or_404(LabourCode, pk=pk)
+    
+    if request.method == 'POST':
+        form = LabourCodeForm(request.POST, instance=labour_code)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Labour code {labour_code.code} updated successfully!')
+            return redirect('tracker:labour_codes_list')
+    else:
+        form = LabourCodeForm(instance=labour_code)
+    
+    context = {
+        'form': form,
+        'title': f'Edit Labour Code {labour_code.code}',
+        'action': 'Edit',
+        'labour_code': labour_code,
+    }
+    return render(request, 'tracker/labour_code_form.html', context)
+
+
+@login_required
+@permission_required('tracker.delete_labourcode', raise_exception=True)
+def labour_code_delete(request, pk):
+    """Delete a labour code"""
+    labour_code = get_object_or_404(LabourCode, pk=pk)
+    
+    if request.method == 'POST':
+        code = labour_code.code
+        labour_code.delete()
+        messages.success(request, f'Labour code {code} deleted successfully!')
+        return redirect('tracker:labour_codes_list')
+    
+    context = {
+        'labour_code': labour_code,
+    }
+    return render(request, 'tracker/labour_code_confirm_delete.html', context)
+
+
+@login_required
+@permission_required('tracker.add_labourcode', raise_exception=True)
+def labour_codes_import(request):
+    """Import labour codes from CSV file or add manually"""
+    import_stats = None
+
+    if request.method == 'POST':
+        action = request.POST.get('action', '')
+
+        if action == 'manual':
+            # Handle manual entry
+            code = request.POST.get('code_manual', '').strip().upper()
+            description = request.POST.get('description_manual', '').strip()
+            category = request.POST.get('category_manual', '').strip().lower()
+            is_active = 'is_active_manual' in request.POST
+
+            if not code or not description or not category:
+                messages.error(request, 'Please fill in all required fields')
+            else:
+                try:
+                    obj, created = LabourCode.objects.update_or_create(
+                        code=code,
+                        defaults={
+                            'description': description,
+                            'category': category,
+                            'is_active': is_active,
+                        }
+                    )
+                    if created:
+                        messages.success(request, f'Labour code {code} created successfully!')
+                    else:
+                        messages.success(request, f'Labour code {code} updated successfully!')
+                    return redirect('tracker:labour_codes_list')
+                except Exception as e:
+                    messages.error(request, f'Error saving labour code: {str(e)}')
+
+        elif action == 'import':
+            # Handle CSV/Excel import
+            form = LabourCodeCSVImportForm(request.POST, request.FILES)
+            if form.is_valid():
+                import_file = request.FILES.get('import_file')
+                clear_existing = form.cleaned_data.get('clear_existing', False)
+
+                if import_file:
+                    try:
+                        # Determine file type based on filename
+                        filename = import_file.name.lower()
+                        if filename.endswith('.xlsx') or filename.endswith('.xls'):
+                            import_stats = _process_excel_import(import_file, clear_existing)
+                        else:
+                            import_stats = _process_csv_import(import_file, clear_existing)
+
+                        if import_stats['success']:
+                            messages.success(
+                                request,
+                                f"Import completed! Created: {import_stats['created']}, "
+                                f"Updated: {import_stats['updated']}, "
+                                f"Errors: {import_stats['errors']}"
+                            )
+                            if import_stats['error_details']:
+                                messages.warning(request, f"Issues found: {'; '.join(import_stats['error_details'][:5])}")
+                        else:
+                            messages.error(request, f"Import failed: {import_stats['error_message']}")
+                    except Exception as e:
+                        logger.error(f"Error processing import file: {str(e)}", exc_info=True)
+                        messages.error(request, f"Error processing file: {str(e)}")
+                        import_stats = None
+            else:
+                messages.error(request, 'Please provide a valid file')
+    else:
+        form = LabourCodeCSVImportForm()
+
+    context = {
+        'form': form,
+        'import_stats': import_stats,
+        'title': 'Import Labour Codes',
+    }
+    return render(request, 'tracker/labour_codes_import.html', context)
+
+
+def _process_excel_import(excel_file, clear_existing=False):
+    """Process Excel file (.xlsx, .xls) and import labour codes"""
+    if not PANDAS_AVAILABLE:
+        return {
+            'success': False,
+            'error_message': 'Excel import requires pandas library. Please contact administrator.',
+        }
+
+    try:
+        # Read Excel file using pandas
+        try:
+            df = pd.read_excel(excel_file, sheet_name=0)
+        except Exception as e:
+            logger.error(f"Failed to read Excel file: {str(e)}")
+            return {
+                'success': False,
+                'error_message': f'Failed to read Excel file: {str(e)}',
+            }
+
+        if df.empty:
+            return {
+                'success': False,
+                'error_message': 'Excel file is empty.',
+            }
+
+        # Normalize column names (lowercase, strip whitespace)
+        df.columns = [col.strip().lower() for col in df.columns]
+
+        # Check required columns
+        required_cols = {'code', 'description', 'category'}
+        excel_cols = set(df.columns)
+
+        if not required_cols.issubset(excel_cols):
+            return {
+                'success': False,
+                'error_message': f'Excel must contain columns: code, description, category. Found: {", ".join(df.columns)}',
+            }
+
+        with transaction.atomic():
+            if clear_existing:
+                LabourCode.objects.all().delete()
+
+            created_count = 0
+            updated_count = 0
+            error_details = []
+
+            for row_num, row in df.iterrows():
+                try:
+                    code = str(row.get('code', '')).strip().upper()
+                    description = str(row.get('description', '')).strip()
+                    category = str(row.get('category', '')).strip().lower()
+                    is_active = True
+
+                    # Check for is_active column if present
+                    if 'is_active' in df.columns:
+                        is_active_val = row.get('is_active', 'true')
+                        is_active = str(is_active_val).lower() in ['true', '1', 'yes', 'active']
+
+                    # Validate required fields
+                    if not code or code == 'nan':
+                        error_details.append(f"Row {row_num + 2}: Code is required")
+                        continue
+
+                    if not description or description == 'nan':
+                        error_details.append(f"Row {row_num + 2}: Description is required")
+                        continue
+
+                    if not category or category == 'nan':
+                        error_details.append(f"Row {row_num + 2}: Category is required")
+                        continue
+
+                    # Create or update labour code
+                    obj, created = LabourCode.objects.update_or_create(
+                        code=code,
+                        defaults={
+                            'description': description,
+                            'category': category,
+                            'is_active': is_active,
+                        }
+                    )
+
+                    if created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+
+                except Exception as e:
+                    error_details.append(f"Row {row_num + 2}: {str(e)}")
+                    logger.error(f"Error processing row {row_num + 2}: {str(e)}")
+
+        logger.info(f"Excel import completed: Created={created_count}, Updated={updated_count}, Errors={len(error_details)}")
+
+        return {
+            'success': True,
+            'created': created_count,
+            'updated': updated_count,
+            'errors': len(error_details),
+            'error_details': error_details,
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing Excel file: {str(e)}", exc_info=True)
+        return {
+            'success': False,
+            'error_message': f'Error processing Excel file: {str(e)}',
+        }
+
+
+def _process_csv_import(csv_file, clear_existing=False):
+    """Process CSV file and import labour codes"""
+    try:
+        # Read CSV file
+        if isinstance(csv_file, str):
+            csv_content = csv_file
+        else:
+            csv_content = csv_file.read().decode('utf-8-sig')
+
+        # Parse CSV
+        csv_reader = csv.DictReader(io.StringIO(csv_content))
+
+        if not csv_reader.fieldnames:
+            return {
+                'success': False,
+                'error_message': 'CSV file is empty or invalid format',
+            }
+
+        # Check required columns
+        required_cols = {'code', 'description', 'category'}
+        csv_cols = set(col.strip().lower() for col in csv_reader.fieldnames)
+
+        if not required_cols.issubset(csv_cols):
+            return {
+                'success': False,
+                'error_message': f'CSV must contain columns: code, description, category. Found: {", ".join(csv_reader.fieldnames)}',
+            }
+
+        with transaction.atomic():
+            if clear_existing:
+                LabourCode.objects.all().delete()
+
+            created_count = 0
+            updated_count = 0
+            error_details = []
+
+            for row_num, row in enumerate(csv_reader, start=2):
+                try:
+                    code = row.get('code', '').strip().upper()
+                    description = row.get('description', '').strip()
+                    category = row.get('category', '').strip().lower()
+                    is_active = row.get('is_active', 'true').lower() in ['true', '1', 'yes']
+
+                    # Validate required fields
+                    if not code:
+                        error_details.append(f"Row {row_num}: Code is required")
+                        continue
+
+                    if not description:
+                        error_details.append(f"Row {row_num}: Description is required")
+                        continue
+
+                    if not category:
+                        error_details.append(f"Row {row_num}: Category is required")
+                        continue
+
+                    # Create or update labour code
+                    obj, created = LabourCode.objects.update_or_create(
+                        code=code,
+                        defaults={
+                            'description': description,
+                            'category': category,
+                            'is_active': is_active,
+                        }
+                    )
+
+                    if created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+
+                except Exception as e:
+                    error_details.append(f"Row {row_num}: {str(e)}")
+
+        logger.info(f"CSV import completed: Created={created_count}, Updated={updated_count}, Errors={len(error_details)}")
+
+        return {
+            'success': True,
+            'created': created_count,
+            'updated': updated_count,
+            'errors': len(error_details),
+            'error_details': error_details,
+        }
+
+    except UnicodeDecodeError:
+        return {
+            'success': False,
+            'error_message': 'File encoding error. Please use UTF-8 encoded CSV files.',
+        }
+    except Exception as e:
+        logger.error(f"Error processing CSV file: {str(e)}", exc_info=True)
+        return {
+            'success': False,
+            'error_message': f'Error processing file: {str(e)}',
+        }
+
+
+@login_required
+@permission_required('tracker.view_labourcode', raise_exception=True)
+@require_http_methods(['GET'])
+def api_labour_codes(request):
+    """API endpoint to get labour codes for JS usage"""
+    codes = list(
+        LabourCode.objects.filter(is_active=True).values('code', 'description', 'category')
+    )
+    return JsonResponse({'codes': codes})

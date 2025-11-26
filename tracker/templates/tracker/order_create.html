@@ -1,0 +1,1026 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}New Order{% endblock %}
+
+{% block content %}
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6"><h4>New Order{% if customer %} - {{ customer.full_name }}{% endif %}</h4></div>
+        <div class="col-6">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'tracker:orders_list' %}">Orders</a></li>
+            <li class="breadcrumb-item active">Create</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Show customer search ONLY if no customer is pre-selected -->
+  {% if not customer %}
+  <div class="container-fluid">
+    <div class="card shadow-sm border-left border-4" style="border-left-color: #667eea;">
+      <div class="card-body">
+        <h5 class="card-title mb-4">
+          <i class="fa fa-search me-2"></i>Select Customer for New Order
+        </h5>
+        <p class="text-muted">Search for an existing customer or view recent customers. Click "Start Order" to begin creating an order.</p>
+        <div class="row">
+          <div class="col-md-8">
+            <div class="input-group input-group-lg mb-3">
+              <input type="text" class="form-control" id="customerSearch" placeholder="Search by name, phone, or email..." autocomplete="off">
+              <button class="btn btn-primary" type="button" id="searchCustomerBtn">
+                <i class="fa fa-search me-2"></i>Search
+              </button>
+            </div>
+            <div id="searchResults" class="list-group" style="display: none; max-height: 400px; overflow-y: auto;">
+              <!-- Search results will be populated here -->
+            </div>
+            <div id="selectedCustomer" class="mt-3" style="display: none;">
+              <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                  <h6 class="mb-0"><i class="fa fa-check-circle me-2"></i>Customer Selected</h6>
+                </div>
+                <div class="card-body">
+                  <h5 id="customerName" class="card-title mb-3"></h5>
+                  <div class="row mb-3">
+                    <div class="col-md-6">
+                      <small class="text-muted d-block">Phone</small>
+                      <p id="customerPhone" class="mb-0"><i class="fa fa-phone me-1"></i></p>
+                    </div>
+                    <div class="col-md-6">
+                      <small class="text-muted d-block">Email</small>
+                      <p id="customerEmail" class="mb-0"><i class="fa fa-envelope me-1"></i></p>
+                    </div>
+                    <div class="col-md-6">
+                      <small class="text-muted d-block">Type</small>
+                      <p id="customerType" class="mb-0"><span class="badge bg-info"></span></p>
+                    </div>
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div class="d-flex gap-2 flex-wrap mt-4 pt-3 border-top">
+                    <button class="btn btn-lg btn-primary flex-grow-1" id="startOrderBtn" type="button">
+                      <i class="fa fa-play me-2"></i>Start Order
+                    </button>
+                    <button class="btn btn-outline-primary" id="changeCustomer" type="button">
+                      <i class="fa fa-exchange me-1"></i>Change
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if customer %}
+  <!-- Order Type Selection (appears when customer is pre-selected) -->
+  <div class="container-fluid mb-3">
+    <div class="card border-primary">
+      <div class="card-header bg-light">
+        <h5 class="card-title mb-0">
+          <i class="fa fa-list me-2"></i>What would you like to do?
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6 col-lg-3">
+            <div class="order-type-card card h-100 cursor-pointer border-2" data-order-type="new">
+              <div class="card-body text-center">
+                <i class="fa fa-plus-circle fs-1 text-primary mb-3 d-block"></i>
+                <h6 class="card-title">New Order</h6>
+                <p class="card-text small text-muted">Create a new service or sales order</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3">
+            <div class="order-type-card card h-100 cursor-pointer border-2" data-order-type="upload">
+              <div class="card-body text-center">
+                <i class="fa fa-cloud-upload fs-1 text-success mb-3 d-block"></i>
+                <h6 class="card-title">Upload Invoice</h6>
+                <p class="card-text small text-muted">Create order from invoice</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-3">
+            <div class="order-type-card card h-100 cursor-pointer border-2" data-order-type="orders">
+              <div class="card-body text-center">
+                <i class="fa fa-list fs-1 text-info mb-3 d-block"></i>
+                <h6 class="card-title">View Orders</h6>
+                <p class="card-text small text-muted">View and manage existing orders</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order Form Section (hidden by default, shown on selection) -->
+  <div id="customerInfoSection" style="display:none;">
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Customer Information</h5>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="d-flex align-items-center mb-2">
+              <i class="fa fa-user text-primary me-2"></i>
+              <strong>{{ customer.full_name }}</strong>
+            </div>
+            <div class="d-flex align-items-center mb-2">
+              <i class="fa fa-phone text-success me-2"></i>
+              <span>{{ customer.phone }}</span>
+            </div>
+            {% if customer.email %}
+              <div class="d-flex align-items-center mb-2">
+                <i class="fa fa-envelope text-info me-2"></i>
+                <span>{{ customer.email }}</span>
+              </div>
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <div class="d-flex align-items-center mb-2">
+              <i class="fa fa-tag text-secondary me-2"></i>
+              <span class="badge bg-secondary">{{ customer.get_customer_type_display|default:"Personal" }}</span>
+            </div>
+            {% if customer.organization_name %}
+              <div class="d-flex align-items-center mb-2">
+                <i class="fa fa-building text-primary me-2"></i>
+                <span>{{ customer.organization_name }}</span>
+              </div>
+            {% endif %}
+            {% if customer.personal_subtype %}
+              <div class="d-flex align-items-center mb-2">
+                <i class="fa fa-user-tag text-info me-2"></i>
+                <span>{{ customer.get_personal_subtype_display }}</span>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="mt-2">
+          <a href="{% url 'tracker:customer_detail' customer.pk %}" class="btn btn-sm btn-outline-primary">
+            <i class="fa fa-eye me-1"></i>View Details
+          </a>
+          <a href="{% url 'tracker:order_start' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-user-plus me-1"></i>Change Customer
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Customer Vehicles Section -->
+  <div class="container-fluid mt-3">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title mb-3">
+          <i class="fa fa-car me-2"></i>Customer Vehicles
+          <span id="vehicleCountBadge" class="badge bg-primary ms-2"></span>
+        </h5>
+        <div id="customerVehiclesContainer">
+          <!-- Vehicles will be loaded here -->
+        </div>
+        <div id="noVehiclesMessage" class="alert alert-info" style="display: none;">
+          <i class="fa fa-info-circle me-2"></i>
+          This customer doesn't have any registered vehicles yet. 
+          <button type="button" class="btn btn-sm btn-primary ms-2" data-bs-toggle="modal" data-bs-target="#addVehicleModal">
+            <i class="fa fa-plus me-1"></i>Add New Vehicle
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Order Form Section (shown when user selects "New Order") -->
+  <div id="newOrderSection" style="display: none;">
+    <div class="container-fluid">
+      <div class="card">
+        <div class="card-body">
+          <form id="orderForm" method="post" novalidate>
+            {% csrf_token %}
+            {% if customer %}<input type="hidden" name="customer_id" value="{{ customer.id }}">{% endif %}
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label">{{ form.type.label }}</label>
+                {{ form.type }}
+                {% if form.type.errors %}<div class="text-danger f-12">{{ form.type.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">{{ form.priority.label }}</label>
+                {{ form.priority }}
+                {% if form.priority.errors %}<div class="text-danger f-12">{{ form.priority.errors|striptags }}</div>{% endif %}
+              </div>
+              <div class="col-md-4" id="vehicleFieldGroup">
+                <label class="form-label">{{ form.vehicle.label }}</label>
+                {{ form.vehicle }}
+                {% if form.vehicle.errors %}<div class="text-danger f-12">{{ form.vehicle.errors|striptags }}</div>{% endif %}
+              </div>
+            </div>
+
+            {% include 'tracker/partials/order_form_sections.html' with form=form %}
+
+            <div class="d-flex justify-content-between mt-4">
+              <button class="btn btn-outline-secondary" type="button" id="backFromOrderBtn">
+                <i class="fa fa-arrow-left me-1"></i>Back
+              </button>
+              <div class="d-flex gap-2">
+                <button class="btn btn-success" type="submit">Create Order</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Invoice Section (shown when user selects "Upload Invoice") -->
+  <div id="uploadInvoiceSection" style="display: none;">
+    <div class="container-fluid">
+      <div class="card">
+        <div class="card-header bg-light">
+          <h5 class="card-title mb-0">
+            <i class="fa fa-cloud-upload me-2"></i>Upload Invoice to Create Order
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info">
+            <i class="fa fa-info-circle me-2"></i>
+            Upload an invoice PDF or image. We'll extract customer information, items, and payment details. You can then review and create the order.
+          </div>
+
+          <!-- File Upload Area -->
+          <div class="upload-area border-2 border-dashed rounded p-5 text-center mb-4" id="invoiceUploadArea" style="cursor: pointer; background-color: #f8f9fa; border-color: #dee2e6;">
+            <div class="upload-icon mb-3">
+              <i class="fa fa-cloud-upload fa-3x text-muted"></i>
+            </div>
+            <h6 class="mb-2">Drop invoice file here or click to select</h6>
+            <p class="text-muted small mb-3">Supported formats: PDF, PNG, JPG, JPEG (max 10MB)</p>
+            <input type="file" id="invoiceFileInput" class="d-none" accept=".pdf,.png,.jpg,.jpeg" />
+            <button type="button" class="btn btn-primary" id="selectInvoiceFileBtn">
+              <i class="fa fa-folder-open me-2"></i>Select File
+            </button>
+          </div>
+
+          <!-- Upload Progress -->
+          <div id="uploadProgress" style="display: none;" class="mb-4">
+            <div class="progress mb-2">
+              <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+            </div>
+            <p class="text-muted small text-center">Extracting invoice data...</p>
+          </div>
+
+          <!-- Extracted Data Preview -->
+          <div id="extractedDataSection" style="display: none;" class="mb-4">
+            <h6 class="mb-3">Extracted Invoice Data (Review & Edit)</h6>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group mb-3">
+                  <label class="form-label">Customer Name</label>
+                  <input type="text" id="extractedCustomerName" class="form-control" value="{{ customer.full_name }}" readonly>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group mb-3">
+                  <label class="form-label">Phone</label>
+                  <input type="text" id="extractedPhone" class="form-control" value="{{ customer.phone }}" readonly>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group mb-3">
+                  <label class="form-label">Net Amount</label>
+                  <input type="number" id="extractedNetAmount" class="form-control" step="0.01" min="0" />
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group mb-3">
+                  <label class="form-label">VAT Amount</label>
+                  <input type="number" id="extractedVATAmount" class="form-control" step="0.01" min="0" />
+                </div>
+              </div>
+              <div class="col-md-12">
+                <div class="form-group mb-3">
+                  <label class="form-label">Gross Amount</label>
+                  <input type="number" id="extractedGrossAmount" class="form-control" step="0.01" min="0" />
+                </div>
+              </div>
+              <div class="col-md-12">
+                <div class="form-group mb-3">
+                  <label class="form-label">Description / Items</label>
+                  <textarea id="extractedDescription" class="form-control" rows="4"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between mt-4">
+              <button class="btn btn-outline-secondary" type="button" id="backFromUploadBtn">
+                <i class="fa fa-arrow-left me-1"></i>Back
+              </button>
+              <button class="btn btn-success" type="button" id="createOrderFromInvoiceBtn">
+                <i class="fa fa-check me-1"></i>Create Order
+              </button>
+            </div>
+          </div>
+
+          <!-- Error Message -->
+          <div id="uploadErrorSection" style="display: none;" class="alert alert-danger mb-0">
+            <i class="fa fa-exclamation-circle me-2"></i>
+            <span id="uploadErrorMessage"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Vehicle Modal -->
+  <div class="modal fade" id="addVehicleModal" tabindex="-1" aria-labelledby="addVehicleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addVehicleModalLabel">Add New Vehicle</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Plate Number</label>
+              <input type="text" id="modalPlateNumber" class="form-control" placeholder="e.g., T123ABC">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Make</label>
+              <input type="text" id="modalMake" class="form-control" placeholder="e.g., Toyota">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Model</label>
+              <input type="text" id="modalModel" class="form-control" placeholder="e.g., Corolla">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Vehicle Type</label>
+              <select id="modalVehicleType" class="form-select">
+                <option value="">Select type</option>
+                <option value="Car">Car</option>
+                <option value="SUV">SUV</option>
+                <option value="Truck">Truck</option>
+                <option value="Motorcycle">Motorcycle</option>
+                <option value="Bus">Bus</option>
+                <option value="Van">Van</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="saveVehicleBtn">Save Vehicle</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% block extra_js %}
+  <script>
+    (function(){
+      // Initialize order type selector
+      document.addEventListener('DOMContentLoaded', function(){
+        const orderTypeCards = document.querySelectorAll('.order-type-card');
+        const newOrderSection = document.getElementById('newOrderSection');
+        const uploadInvoiceSection = document.getElementById('uploadInvoiceSection');
+        const customerInfoSection = document.getElementById('customerInfoSection');
+        const backFromOrderBtn = document.getElementById('backFromOrderBtn');
+        const backFromUploadBtn = document.getElementById('backFromUploadBtn');
+        const typeSelect = document.getElementById('{{ form.type.id_for_label }}') || document.querySelector('[name="{{ form.type.html_name }}"]');
+
+        function hideAllSections() {
+          if (newOrderSection) newOrderSection.style.display = 'none';
+          if (uploadInvoiceSection) uploadInvoiceSection.style.display = 'none';
+          if (customerInfoSection) customerInfoSection.style.display = 'none';
+          orderTypeCards.forEach(c => c.classList.remove('border-primary', 'bg-light'));
+        }
+
+        // Debug: log element references
+        console.log('Order type cards found:', orderTypeCards.length);
+        console.log('Upload invoice section:', uploadInvoiceSection);
+        console.log('New order section:', newOrderSection);
+
+        // With pre-selected customer, keep order type cards visible but ready to select
+        // Don't auto-select - let user choose their preferred action
+
+        orderTypeCards.forEach(card => {
+          card.addEventListener('click', function(e){
+            e.preventDefault();
+            e.stopPropagation();
+
+            const orderType = this.getAttribute('data-order-type');
+            console.log('Card clicked:', orderType);
+
+            // Handle redirect cases first
+
+            if (orderType === 'orders') {
+              console.log('Redirecting to orders list');
+              window.location.href = '{% url "tracker:orders_list" %}';
+              return;
+            }
+
+            // Hide all sections and remove highlights
+            hideAllSections();
+
+            // Add highlight to clicked card
+            this.classList.add('border-primary', 'bg-light');
+
+            // For 'new' order type, show the form section
+            if (orderType === 'new') {
+              console.log('Showing new order section');
+              if (newOrderSection) {
+                newOrderSection.style.display = 'block';
+              }
+              if (customerInfoSection) {
+                customerInfoSection.style.display = 'block';
+              }
+              setTimeout(() => {
+                if (newOrderSection) {
+                  newOrderSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }, 100);
+              return;
+            }
+
+            // For 'upload' order type, show the upload section
+            if (orderType === 'upload') {
+              console.log('Showing upload invoice section', uploadInvoiceSection);
+              if (uploadInvoiceSection) {
+                uploadInvoiceSection.style.display = 'block';
+                if (customerInfoSection) {
+                  customerInfoSection.style.display = 'block';
+                }
+                console.log('Upload section display set to block');
+                setTimeout(() => {
+                  uploadInvoiceSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+              } else {
+                console.error('Upload invoice section NOT found in DOM!');
+                alert('Error: Upload invoice section not found. Please refresh the page.');
+              }
+              return;
+            }
+          });
+        });
+
+        // Back buttons
+        if (backFromOrderBtn) {
+          backFromOrderBtn.addEventListener('click', hideAllSections);
+        }
+        if (backFromUploadBtn) {
+          backFromUploadBtn.addEventListener('click', hideAllSections);
+        }
+
+        // Setup invoice upload
+        setupInvoiceUpload();
+      });
+
+      // Handle order type switching
+      var typeEl = document.getElementById('{{ form.type.id_for_label }}') || document.querySelector('[name="{{ form.type.html_name }}"]');
+      function updateSections(){
+        var t = (typeEl && (typeEl.value || (typeEl.options && typeEl.options[typeEl.selectedIndex] && typeEl.options[typeEl.selectedIndex].value))) || '';
+        var svc = document.getElementById('section-service');
+        var sal = document.getElementById('section-sales');
+        var inq = document.getElementById('section-inquiry');
+        if (svc) svc.style.display = (t==='service')? 'block':'none';
+        if (sal) sal.style.display = (t==='sales')? 'block':'none';
+        if (inq) inq.style.display = (t==='inquiry')? 'block':'none';
+        var veh = document.getElementById('vehicleFieldGroup');
+        if (veh) veh.style.display = (t==='inquiry')? 'none':'block';
+      }
+      if(typeEl){ typeEl.addEventListener('change', updateSections); updateSections(); }
+
+      // Setup invoice upload functionality
+      function setupInvoiceUpload() {
+        const uploadArea = document.getElementById('invoiceUploadArea');
+        const fileInput = document.getElementById('invoiceFileInput');
+        const selectBtn = document.getElementById('selectInvoiceFileBtn');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const extractedSection = document.getElementById('extractedDataSection');
+        const createBtn = document.getElementById('createOrderFromInvoiceBtn');
+        const errorSection = document.getElementById('uploadErrorSection');
+        const errorMsg = document.getElementById('uploadErrorMessage');
+
+        console.log('Setting up invoice upload - uploadArea:', uploadArea, 'fileInput:', fileInput, 'selectBtn:', selectBtn);
+
+        if (!uploadArea || !fileInput) {
+          console.warn('Upload area or file input not found, skipping setup');
+          return;
+        }
+
+        // Click to select file
+        if (selectBtn) {
+          selectBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Select button clicked, triggering file input');
+            fileInput.click();
+          });
+        } else {
+          console.warn('Select button not found');
+        }
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          uploadArea.classList.add('bg-light');
+        });
+
+        uploadArea.addEventListener('dragleave', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          uploadArea.classList.remove('bg-light');
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          uploadArea.classList.remove('bg-light');
+          const files = e.dataTransfer.files;
+          if (files.length > 0) {
+            console.log('Files dropped:', files.length);
+            fileInput.files = files;
+            uploadFile();
+          }
+        });
+
+        fileInput.addEventListener('change', function(e) {
+          console.log('File input changed');
+          uploadFile();
+        });
+
+        function uploadFile() {
+          const file = fileInput.files[0];
+          if (!file) return;
+
+          errorSection.style.display = 'none';
+          extractedSection.style.display = 'none';
+          uploadProgress.style.display = 'block';
+
+          const formData = new FormData();
+          formData.append('file', file);
+
+          fetch('/tracker/api/invoices/extract-preview/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'X-CSRFToken': getCSRFToken()
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            uploadProgress.style.display = 'none';
+            if (data.success) {
+              // Populate extracted fields
+              const header = data.header || {};
+              document.getElementById('extractedNetAmount').value = header.subtotal || '';
+              document.getElementById('extractedVATAmount').value = header.tax_amount || '';
+              document.getElementById('extractedGrossAmount').value = header.total_amount || '';
+              document.getElementById('extractedDescription').value = (data.items || []).map(item =>
+                `${item.description || ''} - Qty: ${item.quantity || 1}`
+              ).join('\n') || '';
+              extractedSection.style.display = 'block';
+              setTimeout(() => {
+                extractedSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 100);
+            } else {
+              errorMsg.textContent = data.message || 'Failed to extract invoice data';
+              errorSection.style.display = 'block';
+            }
+          })
+          .catch(error => {
+            uploadProgress.style.display = 'none';
+            errorMsg.textContent = error.message || 'Error uploading file';
+            errorSection.style.display = 'block';
+          });
+        }
+
+        // Create order from invoice
+        if (createBtn) {
+          createBtn.addEventListener('click', function() {
+            const netAmount = document.getElementById('extractedNetAmount').value;
+            const vatAmount = document.getElementById('extractedVATAmount').value;
+            const grossAmount = document.getElementById('extractedGrossAmount').value;
+            const description = document.getElementById('extractedDescription').value;
+
+            const formData = new FormData();
+            formData.append('type', 'upload');
+            formData.append('subtotal', netAmount);
+            formData.append('tax_amount', vatAmount);
+            formData.append('total_amount', grossAmount);
+            formData.append('description', description);
+            formData.append('customer_id', '{{ customer.id }}');
+
+            fetch('/tracker/api/orders/create-from-modal/', {
+              method: 'POST',
+              body: formData,
+              headers: {
+                'X-CSRFToken': getCSRFToken()
+              }
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                window.location.href = data.redirect_url || '/tracker/orders/started/';
+              } else {
+                alert(data.error || 'Failed to create order');
+              }
+            })
+            .catch(error => {
+              alert('Error: ' + error.message);
+            });
+          });
+        }
+      }
+
+      function getCSRFToken() {
+        const name = 'csrftoken';
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+          const cookies = document.cookie.split(';');
+          for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+              break;
+            }
+          }
+        }
+        return cookieValue;
+      }
+
+      // Auto-select brand when item changes using data-brands mapping
+      (function(){
+        var itemEl = document.getElementById('id_item_name');
+        var brandEl = document.getElementById('id_brand');
+        if (!itemEl || !brandEl) return;
+        var mapping = {};
+        try { mapping = JSON.parse(itemEl.getAttribute('data-items') || '{}'); } catch(e) { mapping = {}; }
+        itemEl.addEventListener('change', function(){
+          var meta = mapping[this.value];
+          if (!meta) return;
+          // brand input is hidden text input; set value directly
+          brandEl.value = meta.brand || '';
+        });
+      })();
+
+      // Handle customer search and selection
+      const searchInput = document.getElementById('customerSearch');
+      const searchBtn = document.getElementById('searchCustomerBtn');
+      const searchResults = document.getElementById('searchResults');
+      const selectedCustomer = document.getElementById('selectedCustomer');
+      const customerForm = document.getElementById('orderForm');
+      
+      // Only initialize customer search if we don't have a customer already
+      if (searchInput && searchBtn && searchResults && selectedCustomer && customerForm) {
+      
+      // Search for customers
+      function searchCustomers() {
+        const query = searchInput.value.trim();
+        if (query.length < 2) {
+          searchResults.style.display = 'none';
+          return;
+        }
+
+        fetch(`/customers/search/?q=${encodeURIComponent(query)}&details=1`)
+          .then(response => response.json())
+          .then(data => {
+            if (data.results && data.results.length > 0) {
+              searchResults.innerHTML = '';
+              data.results.forEach(customer => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action';
+                item.innerHTML = `
+                  <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">${customer.name}</h6>
+                    <small>#${customer.code || customer.id}</small>
+                  </div>
+                  <p class="mb-1">${customer.phone || 'No phone'}</p>
+                  <small>${customer.email || 'No email'}</small>
+                `;
+                item.addEventListener('click', () => selectCustomer(customer));
+                searchResults.appendChild(item);
+              });
+              searchResults.style.display = 'block';
+            } else {
+              searchResults.innerHTML = '<div class="list-group-item">No customers found</div>';
+              searchResults.style.display = 'block';
+            }
+          })
+          .catch(error => {
+            console.error('Error searching customers:', error);
+            searchResults.innerHTML = '<div class="list-group-item text-danger">Error loading customers</div>';
+            searchResults.style.display = 'block';
+          });
+      }
+
+      // Select a customer
+      function selectCustomer(customer) {
+        document.getElementById('customerName').textContent = customer.name;
+        const phoneEl = document.getElementById('customerPhone');
+        const emailEl = document.getElementById('customerEmail');
+        const typeEl = document.getElementById('customerType');
+
+        if (phoneEl) phoneEl.innerHTML = `<i class="fa fa-phone me-1"></i>${customer.phone || 'No phone'}`;
+        if (emailEl) emailEl.innerHTML = `<i class="fa fa-envelope me-1"></i>${customer.email || 'No email'}`;
+        if (typeEl) typeEl.innerHTML = `<span class="badge bg-info">${customer.customer_type_display || 'Personal'}</span>`;
+
+        // Store customer ID in a hidden field
+        let customerIdField = document.querySelector('input[name="customer_id"]');
+        if (!customerIdField) {
+          customerIdField = document.createElement('input');
+          customerIdField.type = 'hidden';
+          customerIdField.name = 'customer_id';
+          customerForm.prepend(customerIdField);
+        }
+        customerIdField.value = customer.id;
+
+        // Store customer data for use in Start Order
+        window.selectedCustomerData = customer;
+
+        // Show selected customer and hide search
+        selectedCustomer.style.display = 'block';
+        searchResults.style.display = 'none';
+        searchInput.value = '';
+
+        // Load customer's vehicles
+        loadCustomerVehicles(customer.id);
+      }
+
+      // Handle Start Order button
+      const startOrderBtn = document.getElementById('startOrderBtn');
+      if (startOrderBtn && customerForm) {
+        startOrderBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          const customerIdEl = document.querySelector('input[name="customer_id"]');
+          const customerId = customerIdEl && customerIdEl.value ? customerIdEl.value : '';
+          if (!customerId) return;
+
+          const vehicleSelect = document.getElementById('{{ form.vehicle.id_for_label }}') || document.querySelector('[name="{{ form.vehicle.html_name }}"]');
+          let plate = '';
+          if (vehicleSelect && vehicleSelect.value) {
+            const opt = vehicleSelect.options[vehicleSelect.selectedIndex];
+            if (opt && opt.dataset && opt.dataset.plate) {
+              plate = (opt.dataset.plate || '').toUpperCase();
+            }
+          }
+
+          const fd = new FormData();
+          fd.append('customer_id', customerId);
+          fd.append('order_type', 'service');
+          if (plate) fd.append('plate_number', plate);
+          fd.append('description', 'Order started for selected customer');
+
+          fetch('/tracker/api/orders/create-from-modal/', {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-CSRFToken': getCSRFToken() || '' }
+          })
+          .then(r => r.json())
+          .then(data => {
+            if (data && data.success) {
+              const url = data.redirect_url || `/tracker/orders/started/${data.order_id}/`;
+              window.location.href = url;
+            } else {
+              alert(data && data.error ? data.error : 'Failed to start order');
+            }
+          })
+          .catch(err => {
+            alert('Error starting order: ' + (err && err.message ? err.message : err));
+          });
+        });
+      }
+
+      // Load customer's vehicles
+      function loadCustomerVehicles(customerId) {
+        fetch(`/api/customers/${customerId}/vehicles/`)
+          .then(response => response.json())
+          .then(data => {
+            const vehicleSelect = document.getElementById('{{ form.vehicle.id_for_label }}');
+            const vehiclesContainer = document.getElementById('customerVehiclesContainer');
+            const noVehiclesMessage = document.getElementById('noVehiclesMessage');
+            const vehicleCountBadge = document.getElementById('vehicleCountBadge');
+            const inlineAddBtn = document.getElementById('addVehicleBtnInline');
+
+            if (vehicleSelect) {
+              // Clear existing options
+              vehicleSelect.innerHTML = '<option value="">Select a vehicle</option>';
+              
+              // Add customer's vehicles
+              if (data.vehicles && data.vehicles.length > 0) {
+                // Show vehicles in a user-friendly way
+                let vehiclesHTML = '<div class="row">';
+                data.vehicles.forEach((vehicle, index) => {
+                  const vehicleLabel = [
+                    vehicle.make || '',
+                    vehicle.model || '',
+                    vehicle.year ? `(${vehicle.year})` : '',
+                    vehicle.license_plate ? `- ${vehicle.license_plate}` : ''
+                  ].filter(Boolean).join(' ');
+                  
+                  const option = document.createElement('option');
+                  option.value = vehicle.id;
+                  option.textContent = vehicleLabel || 'Unnamed Vehicle';
+                  if (vehicle.license_plate) option.dataset.plate = vehicle.license_plate;
+                  vehicleSelect.appendChild(option);
+
+                  // Add vehicle card for display
+                  vehiclesHTML += `
+                    <div class="col-md-6 col-lg-4 mb-3">
+                      <div class="card h-100 vehicle-card" data-vehicle-id="${vehicle.id}">
+                        <div class="card-body">
+                          <h6 class="card-title">
+                            <i class="fa fa-car me-2"></i>
+                            ${vehicle.make || 'Vehicle'} ${vehicle.model || ''}
+                          </h6>
+                          <p class="card-text mb-1">
+                            <small class="text-muted">
+                              ${vehicle.license_plate ? `<i class="fa fa-id-card me-1"></i> ${vehicle.license_plate}<br>` : ''}
+                              ${vehicle.year ? `<i class="fa fa-calendar me-1"></i> ${vehicle.year}<br>` : ''}
+                              ${vehicle.vin ? `<i class="fa fa-barcode me-1"></i> ${vehicle.vin}<br>` : ''}
+                            </small>
+                          </p>
+                          <button type="button" class="btn btn-sm btn-outline-primary select-vehicle-btn" data-vehicle-id="${vehicle.id}">
+                            <i class="fa fa-check me-1"></i>Select This Vehicle
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                });
+                vehiclesHTML += '</div>';
+                
+                vehiclesContainer.innerHTML = vehiclesHTML;
+                vehicleCountBadge.textContent = data.vehicles.length;
+                vehicleCountBadge.style.display = 'inline';
+                noVehiclesMessage.style.display = 'none';
+                if (inlineAddBtn) inlineAddBtn.style.display = 'none';
+
+                // Add event listeners to select buttons
+                document.querySelectorAll('.select-vehicle-btn').forEach(button => {
+                  button.addEventListener('click', function() {
+                    const vehicleId = this.getAttribute('data-vehicle-id');
+                    vehicleSelect.value = vehicleId;
+                    
+                    // Highlight selected card
+                    document.querySelectorAll('.vehicle-card').forEach(card => {
+                      card.classList.remove('border-primary');
+                    });
+                    this.closest('.vehicle-card').classList.add('border-primary');
+                  });
+                });
+              } else {
+                // No vehicles found
+                vehiclesContainer.innerHTML = '';
+                vehicleCountBadge.style.display = 'none';
+                noVehiclesMessage.style.display = 'block';
+                if (inlineAddBtn) inlineAddBtn.style.display = 'inline-block';
+              }
+
+              // Enable the vehicle select
+              vehicleSelect.disabled = false;
+            }
+          })
+          .catch(error => {
+            console.error('Error loading vehicles:', error);
+            const vehicleSelect = document.getElementById('{{ form.vehicle.id_for_label }}');
+            if (vehicleSelect) {
+              vehicleSelect.innerHTML = '<option value="" disabled selected>Error loading vehicles</option>';
+              vehicleSelect.disabled = true;
+            }
+          });
+      }
+
+      // Save new vehicle
+      document.getElementById('saveVehicleBtn').addEventListener('click', function() {
+        const customerId = document.querySelector('input[name="customer_id"]').value;
+        const plateNumber = document.getElementById('modalPlateNumber').value;
+        const make = document.getElementById('modalMake').value;
+        const model = document.getElementById('modalModel').value;
+        const vehicleType = document.getElementById('modalVehicleType').value;
+        
+        // Simple validation
+        if (!make && !model && !plateNumber) {
+          alert('Please fill in at least one vehicle field');
+          return;
+        }
+        
+        // Create vehicle data
+        const vehicleData = new FormData();
+        vehicleData.append('customer_id', customerId);
+        if (plateNumber) vehicleData.append('plate_number', plateNumber);
+        if (make) vehicleData.append('make', make);
+        if (model) vehicleData.append('model', model);
+        if (vehicleType) vehicleData.append('vehicle_type', vehicleType);
+        
+        // Send request to create vehicle
+        fetch(`/vehicles/${customerId}/add/`, {
+          method: 'POST',
+          body: vehicleData,
+          headers: {
+            'X-CSRFToken': getCSRFToken() || '',
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addVehicleModal'));
+            modal.hide();
+            
+            // Clear form fields
+            document.getElementById('modalPlateNumber').value = '';
+            document.getElementById('modalMake').value = '';
+            document.getElementById('modalModel').value = '';
+            document.getElementById('modalVehicleType').value = '';
+            
+            // Reload customer vehicles
+            loadCustomerVehicles(customerId);
+            
+            // Show success message
+            alert('Vehicle added successfully!');
+          } else {
+            alert('Error adding vehicle: ' + (data.error || 'Unknown error'));
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          alert('Error adding vehicle: ' + error.message);
+        });
+      });
+
+      // Event listeners
+      searchBtn.addEventListener('click', searchCustomers);
+      searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          searchCustomers();
+        }
+      });
+
+      const changeCustomerBtn = document.getElementById('changeCustomer');
+      if (changeCustomerBtn) {
+        changeCustomerBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          selectedCustomer.style.display = 'none';
+          searchInput.focus();
+        });
+      }
+      
+      // Disable the vehicle select by default until a customer is selected
+      const vehicleSelect = document.getElementById('{{ form.vehicle.id_for_label }}');
+      const presetCustomer = document.querySelector('input[name="customer_id"]');
+      if (vehicleSelect && (!presetCustomer || !presetCustomer.value)) {
+        vehicleSelect.disabled = true;
+      }
+      if (presetCustomer && presetCustomer.value) {
+        loadCustomerVehicles(presetCustomer.value);
+      }
+    }
+  })();
+
+  </script>
+
+  <style>
+    .order-type-card {
+      transition: all 0.3s ease;
+      cursor: pointer;
+      border-color: #dee2e6 !important;
+    }
+
+    .order-type-card:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      transform: translateY(-2px);
+      border-color: #0d6efd !important;
+    }
+
+    .order-type-card.border-primary {
+      border-color: #0d6efd !important;
+      background-color: #f8f9fa;
+    }
+
+    .order-type-card i {
+      transition: all 0.3s ease;
+    }
+
+    .order-type-card:hover i {
+      color: #0d6efd !important;
+    }
+
+    .cursor-pointer {
+      cursor: pointer;
+    }
+  </style>
+
+  {% endblock %}
+{% endblock %}

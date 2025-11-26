@@ -1,0 +1,522 @@
+<!-- Enhanced Extraction Form Modal - Integrated Upload + Customer Type + Order Type Selection -->
+<div class="modal fade" id="extractionFormModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <!-- Header -->
+      <div class="modal-header border-bottom border-light bg-gradient-primary text-white">
+        <div>
+          <h5 class="modal-title fw-bold mb-1">
+            <i class="fa fa-file-upload me-2"></i>Update Order from Extraction
+          </h5>
+          <small class="opacity-75">Review and confirm extracted details</small>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <!-- Body - Multi-step form -->
+      <form id="extractionUpdateForm" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="order_id" value="{{ order.id }}">
+        <input type="hidden" name="action" value="update_from_extraction">
+        {% if order.customer %}<input type="hidden" name="pre_selected_customer_id" value="{{ order.customer.id }}">{% endif %}
+
+        <div class="modal-body extraction-form-body">
+          <!-- Step 1: Customer Type Selection (Only shown if customer is not pre-selected) -->
+          <div class="extraction-step" id="extractionStep1" data-step="1" {% if order.customer %}style="display:none;"{% endif %}>
+            <h6 class="fw-bold mb-3">
+              <span class="step-badge-sm">1</span>
+              <i class="fa fa-user me-2 text-primary"></i>Customer Type
+            </h6>
+
+            <div class="customer-type-grid-extraction">
+              <label class="customer-type-option-extraction">
+                <input type="radio" name="extracted_customer_type" value="personal" class="d-none" required>
+                <div class="customer-type-card-extraction">
+                  <i class="fa fa-user-circle text-primary"></i>
+                  <div>Personal</div>
+                </div>
+              </label>
+              <label class="customer-type-option-extraction">
+                <input type="radio" name="extracted_customer_type" value="company" class="d-none">
+                <div class="customer-type-card-extraction">
+                  <i class="fa fa-building text-success"></i>
+                  <div>Company</div>
+                </div>
+              </label>
+              <label class="customer-type-option-extraction">
+                <input type="radio" name="extracted_customer_type" value="government" class="d-none">
+                <div class="customer-type-card-extraction">
+                  <i class="fa fa-landmark text-warning"></i>
+                  <div>Government</div>
+                </div>
+              </label>
+              <label class="customer-type-option-extraction">
+                <input type="radio" name="extracted_customer_type" value="ngo" class="d-none">
+                <div class="customer-type-card-extraction">
+                  <i class="fa fa-handshake-o text-info"></i>
+                  <div>NGO</div>
+                </div>
+              </label>
+            </div>
+
+            <!-- Personal Subtype -->
+            <div class="personal-subtype-section-extraction mt-3 d-none">
+              <label class="form-label fw-medium">Are you? <span class="text-danger">*</span></label>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-check form-check-custom form-check-solid">
+                    <input type="radio" name="extracted_personal_subtype" value="owner" class="form-check-input">
+                    <span class="form-check-label">
+                      <i class="fa fa-id-card me-2"></i>Vehicle Owner
+                    </span>
+                  </label>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-check form-check-custom form-check-solid">
+                    <input type="radio" name="extracted_personal_subtype" value="driver" class="form-check-input">
+                    <span class="form-check-label">
+                      <i class="fa fa-steering-wheel me-2"></i>Driver
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Organization Details -->
+            <div class="org-details-section-extraction mt-3 d-none">
+              <div class="card bg-light border-0">
+                <div class="card-body">
+                  <div class="row g-2">
+                    <div class="col-12">
+                      <label class="form-label fw-medium">Organization Name <span class="text-danger">*</span></label>
+                      <input type="text" name="extracted_organization_name" class="form-control" placeholder="Organization/Company name">
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label fw-medium">Tax Number/TIN <span class="text-danger">*</span></label>
+                      <input type="text" name="extracted_tax_number" class="form-control" placeholder="Tax ID or TIN">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Order Type & Services/Addons -->
+          <div class="extraction-step d-none mt-4" id="extractionStep2" data-step="2">
+            <h6 class="fw-bold mb-3">
+              <span class="step-badge-sm">2</span>
+              <i class="fa fa-list me-2 text-primary"></i>Order Type & Services
+            </h6>
+
+            <div class="alert alert-info mb-3">
+              <small><i class="fa fa-info-circle me-1"></i>
+                Current order type: <strong>{{ order.type|upper }}</strong>
+              </small>
+            </div>
+
+            <!-- Services/Addons based on order type -->
+            <label class="form-label fw-medium">
+              <span id="servicesLabel">Services</span>
+              <span class="text-danger">*</span>
+            </label>
+            <div id="extractionServicesContainer" class="row g-2 mb-3">
+              <p class="text-muted">Loading options...</p>
+            </div>
+
+          </div>
+
+          <!-- Step 3: Add Another Order Type (Optional) -->
+          <div class="extraction-step d-none mt-4" id="extractionStep3" data-step="3">
+            <h6 class="fw-bold mb-3">
+              <span class="step-badge-sm">3</span>
+              <i class="fa fa-plus-circle me-2 text-primary"></i>Add Another Item/Service (Optional)
+            </h6>
+
+            <div class="alert alert-info mb-3">
+              <small><i class="fa fa-info-circle me-1"></i>
+                Current order type: <strong>{{ order.type|upper }}</strong>
+                <br>You can add a complementary item/service type to this order.
+              </small>
+            </div>
+
+            <div class="add-component-section">
+              <div class="form-check form-check-lg mb-3">
+                <input class="form-check-input" type="checkbox" id="addComponentCheckbox" name="add_component">
+                <label class="form-check-label fw-medium" for="addComponentCheckbox">
+                  Add another {% if order.type == 'service' %}Sales Item{% else %}Service{% endif %} to this order?
+                </label>
+              </div>
+
+              <!-- Component Selection (shown when checkbox is checked) -->
+              <div id="componentSelectionWrapper" style="display: none;" class="mt-3">
+                <div class="card border-0 bg-light">
+                  <div class="card-body">
+                    <h6 class="fw-semibold mb-3">
+                      <i class="fa fa-cube me-2"></i>{% if order.type == 'service' %}Sales Item{% else %}Service{% endif %}
+                    </h6>
+
+                    <!-- Component Type Selection -->
+                    <div class="mb-3">
+                      <label class="form-label fw-medium">What would you like to add?</label>
+                      <div class="component-type-grid">
+                        {% if order.type == 'service' %}
+                          <!-- Show Sales options if main order is Service -->
+                          <label class="component-type-card">
+                            <input type="radio" name="component_type" value="sales" class="d-none" required>
+                            <div class="component-card-content">
+                              <i class="fa fa-shopping-cart fa-lg text-success mb-2"></i>
+                              <div class="fw-semibold">Sales Item</div>
+                              <small class="text-muted d-block">Tire, part, or product</small>
+                            </div>
+                          </label>
+                        {% else %}
+                          <!-- Show Service options if main order is Sales -->
+                          <label class="component-type-card">
+                            <input type="radio" name="component_type" value="service" class="d-none" required>
+                            <div class="component-card-content">
+                              <i class="fa fa-wrench fa-lg text-primary mb-2"></i>
+                              <div class="fw-semibold">Service</div>
+                              <small class="text-muted d-block">Installation, balancing, etc.</small>
+                            </div>
+                          </label>
+                        {% endif %}
+                      </div>
+                    </div>
+
+                    <!-- Reason Input -->
+                    <div class="mb-3">
+                      <label class="form-label fw-medium">Reason for adding <span class="text-danger">*</span></label>
+                      <textarea name="component_reason" class="form-control" rows="3" placeholder="e.g., Customer requested installation service with the tire purchase..." style="resize: vertical;"></textarea>
+                      <small class="text-muted d-block mt-1">Briefly explain why this item/service is being added</small>
+                    </div>
+
+                    <!-- Additional Details (for Sales items) -->
+                    {% if order.type == 'service' %}
+                    <div id="salesItemDetailsWrapper" style="display: none;" class="mt-3 pt-3 border-top">
+                      <h6 class="fw-semibold mb-3">Sales Item Details</h6>
+                      <div class="row g-2">
+                        <div class="col-md-6">
+                          <label class="form-label fw-medium">Item Name</label>
+                          <input type="text" name="component_item_name" class="form-control" placeholder="e.g., Tire, Oil filter">
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label fw-medium">Brand</label>
+                          <input type="text" name="component_brand" class="form-control" placeholder="e.g., Michelin, Mobil">
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label fw-medium">Quantity</label>
+                          <input type="number" name="component_quantity" class="form-control" min="1" placeholder="1" value="1">
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label fw-medium">Tire Type (if applicable)</label>
+                          <input type="text" name="component_tire_type" class="form-control" placeholder="e.g., Radial, Bias">
+                        </div>
+                      </div>
+                    </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: Extracted Data (moved from Step 3) -->
+          <div class="extraction-step d-none mt-4" id="extractionStep4" data-step="4">
+            <h6 class="fw-bold mb-3">
+              <span class="step-badge-sm">4</span>
+              <i class="fa fa-file-text me-2 text-primary"></i>Extracted Information
+            </h6>
+
+            <div class="extracted-data-form-extraction">
+              <!-- Customer Info (Hidden when customer is pre-selected) -->
+              <div class="customer-info-section" {% if order.customer %}style="display:none;"{% endif %}>
+                <div class="row g-3 mb-3">
+                  <div class="col-12">
+                    <label class="form-label fw-medium">Customer Name <span class="text-danger">*</span></label>
+                    <input type="text" name="extracted_customer_name" class="form-control" placeholder="Full name" value="{{ order.customer.full_name }}" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-medium">Phone <span class="text-danger">*</span></label>
+                    <input type="text" name="extracted_phone" class="form-control" placeholder="Phone number" value="{{ order.customer.phone }}" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-medium">Email</label>
+                    <input type="email" name="extracted_email" class="form-control" placeholder="Email (optional)" value="{{ order.customer.email|default:'' }}">
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label fw-medium">Address</label>
+                    <textarea name="extracted_address" class="form-control" rows="2" placeholder="Address (optional)">{{ order.customer.address|default:'' }}</textarea>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Customer Pre-selected Alert -->
+              {% if order.customer %}
+              <div class="alert alert-success mb-3">
+                <i class="fa fa-check-circle me-2"></i>
+                <strong>Customer Pre-selected:</strong> {{ order.customer.full_name }}
+                <br><small class="text-muted">Customer information will be saved from the existing record.</small>
+              </div>
+              {% endif %}
+
+              <!-- Order Details -->
+              <hr class="my-3">
+              <div class="row g-3 mb-3">
+                <div class="col-12">
+                  <label class="form-label fw-medium">Order Description</label>
+                  <textarea name="extracted_description" class="form-control" rows="3" placeholder="Order details or services needed">{{ order.description|default:'' }}</textarea>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-medium">Priority</label>
+                  <select name="extracted_priority" class="form-select">
+                    <option value="low" {% if order.priority == 'low' %}selected{% endif %}>Low</option>
+                    <option value="medium" {% if order.priority == 'medium' or not order.priority %}selected{% endif %}>Medium</option>
+                    <option value="high" {% if order.priority == 'high' %}selected{% endif %}>High</option>
+                    <option value="urgent" {% if order.priority == 'urgent' %}selected{% endif %}>Urgent</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Vehicle Details -->
+              <hr class="my-3">
+              <h6 class="fw-semibold mb-3">Vehicle Details (Optional)</h6>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-medium">Plate Number</label>
+                  <input type="text" name="extracted_plate" class="form-control text-uppercase" placeholder="e.g., T 290" value="{% if vehicle %}{{ vehicle.plate_number }}{% endif %}">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-medium">Make</label>
+                  <input type="text" name="extracted_make" class="form-control" placeholder="e.g., Toyota" value="{% if vehicle %}{{ vehicle.make|default:'' }}{% endif %}">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-medium">Model</label>
+                  <input type="text" name="extracted_model" class="form-control" placeholder="e.g., Camry" value="{% if vehicle %}{{ vehicle.model|default:'' }}{% endif %}">
+                </div>
+              </div>
+            </div>
+
+            <div id="extractionDataError" class="alert alert-danger mt-3" style="display: none;">
+              <small><i class="fa fa-exclamation-circle me-1"></i><span></span></small>
+            </div>
+          </div>
+
+          <!-- General Error -->
+          <div id="extractionGeneralError" class="alert alert-danger mt-3" style="display: none;">
+            <small><i class="fa fa-exclamation-circle me-1"></i><span></span></small>
+              </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="modal-footer bg-light border-top">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="extractionCancelBtn">
+            <i class="fa fa-times me-1"></i>Cancel
+          </button>
+
+          <div class="extraction-step-nav-buttons">
+            <button type="button" class="btn btn-outline-secondary" id="extractionPrevBtn" style="display: none;">
+              <i class="fa fa-arrow-left me-1"></i>Previous
+            </button>
+            <button type="button" class="btn btn-primary" id="extractionNextBtn">
+              <i class="fa fa-arrow-right me-1"></i>Next
+            </button>
+            <button type="submit" class="btn btn-success" id="extractionSubmitBtn" style="display: none;">
+              <i class="fa fa-check me-1"></i>Update Order
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+.bg-gradient-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.step-badge-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: #667eea;
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
+  margin-right: 8px;
+}
+
+/* Extraction Step Styles */
+.extraction-step {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.extraction-step.d-none {
+  display: none !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Customer Type Grid for Extraction */
+.customer-type-grid-extraction {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.customer-type-option-extraction {
+  cursor: pointer;
+  margin: 0;
+}
+
+.customer-type-card-extraction {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  text-align: center;
+  font-weight: 600;
+  font-size: 12px;
+  color: #495057;
+}
+
+.customer-type-card-extraction i {
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+
+.customer-type-option-extraction input[type="radio"]:checked + .customer-type-card-extraction {
+  border-color: #667eea;
+  background-color: #f8f9ff;
+  color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.customer-type-option-extraction:hover .customer-type-card-extraction {
+  border-color: #667eea;
+  transform: translateY(-2px);
+}
+
+/* Extracted Data Form */
+.extracted-data-form-extraction {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.personal-subtype-section-extraction,
+.org-details-section-extraction {
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+/* Services Container */
+#extractionServicesContainer {
+  background-color: #f8f9fa;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.extraction-form-body {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* Component Type Selection Styles */
+.component-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.component-type-card {
+  cursor: pointer;
+  margin: 0;
+}
+
+.component-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  text-align: center;
+  background: white;
+  min-height: 100px;
+}
+
+.component-type-card input[type="radio"]:checked + .component-card-content {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2f7 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.component-type-card:hover .component-card-content {
+  border-color: #667eea;
+  transform: translateY(-2px);
+}
+
+/* Add Component Section */
+.add-component-section {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.form-check-lg .form-check-input {
+  width: 1.25em;
+  height: 1.25em;
+  margin-top: 0.2em;
+}
+
+.form-check-lg .form-check-label {
+  font-size: 1rem;
+  margin-left: 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+  .customer-type-grid-extraction {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .component-type-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-dialog {
+    margin: 10px;
+  }
+}
+</style>

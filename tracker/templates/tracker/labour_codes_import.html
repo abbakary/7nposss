@@ -1,0 +1,337 @@
+{% extends 'tracker/base.html' %}
+{% load static %}
+
+{% block title %}Import / Add Labour Codes - POS Tracker{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="row align-items-center">
+            <div class="col-sm-6">
+                <h3 class="f-w-700">Labour Codes</h3>
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'tracker:dashboard' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'tracker:labour_codes_list' %}">Labour Codes</a></li>
+                    <li class="breadcrumb-item active">Import / Add</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="row">
+        <div class="col-12">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header pb-0">
+                    <h5>Import Labour Codes from CSV</h5>
+                    <span class="d-block mt-2 text-muted">Upload a CSV file with labour codes or add them manually below.</span>
+                </div>
+                <div class="card-body">
+                    <!-- File Import Form -->
+                    <div class="mb-4">
+                        <h6 class="mb-3 fw-bold">Import Labour Codes from CSV or Excel</h6>
+                        <form method="post" enctype="multipart/form-data" class="file-import-form">
+                            {% csrf_token %}
+
+                            <!-- File Upload -->
+                            <div class="mb-3">
+                                <label class="form-label">CSV or Excel File <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="file" class="form-control" name="import_file" accept=".csv,.xlsx,.xls" required>
+                                    <button class="btn btn-primary" type="submit" name="action" value="import">
+                                        <i class="fa fa-upload"></i> Import
+                                    </button>
+                                </div>
+                                <small class="d-block mt-2 text-muted">
+                                    Supports CSV and Excel files (.csv, .xlsx, .xls). Must contain columns: <code>code</code>, <code>description</code>, <code>category</code>
+                                </small>
+                            </div>
+
+                            <!-- Clear Existing Option -->
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="clear_existing" id="clearExisting">
+                                <label class="form-check-label" for="clearExisting">
+                                    Clear all existing codes before importing
+                                </label>
+                                <small class="d-block mt-1 text-muted">
+                                    ⚠️ Warning: This will delete all existing labour codes
+                                </small>
+                            </div>
+                        </form>
+
+                        <!-- Sample Template -->
+                  
+                    </div>
+
+                    <hr>
+
+                    <!-- Manual Entry Form -->
+                    <div class="mt-5">
+                        <h6 class="mb-3 fw-bold">Add Single Labour Code</h6>
+                        <form method="post" class="labour-code-form">
+                            {% csrf_token %}
+                            
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label">Code <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" placeholder="e.g., 22007" name="code_manual" id="codeInput" required>
+                                    <small class="text-muted">Unique labour code identifier</small>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Description <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" placeholder="e.g., OIL SERVICE (FILTER)" name="description_manual" id="descriptionInput" required>
+                                </div>
+                                
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label">Category <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="category_manual" id="categoryInput" required>
+                                        <option value="">Select category</option>
+                                        <option value="labour">Labour</option>
+                                        <option value="tyre service">Tyre Service</option>
+                                        <option value="service">Service</option>
+                                        <option value="sales">Sales</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="is_active_manual" id="isActiveInput" checked>
+                                        <label class="form-check-label" for="isActiveInput">
+                                            Active
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-success me-2" name="action" value="manual">
+                                        <i class="fa fa-plus"></i> Add Labour Code
+                                    </button>
+                                    <a href="{% url 'tracker:labour_codes_list' %}" class="btn btn-secondary">
+                                        <i class="fa fa-arrow-left"></i> Back to List
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    {% if import_stats %}
+                    <hr>
+                    <div class="mt-5">
+                        <h6 class="mb-3">Import Results</h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="text-success">{{ import_stats.created }}</h5>
+                                        <p class="text-muted mb-0">Created</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="text-info">{{ import_stats.updated }}</h5>
+                                        <p class="text-muted mb-0">Updated</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="text-warning">{{ import_stats.errors }}</h5>
+                                        <p class="text-muted mb-0">Errors</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if import_stats.error_details %}
+                        <div class="mt-3">
+                            <h6 class="text-warning">Issues Found:</h6>
+                            <ul class="small">
+                                {% for error in import_stats.error_details %}
+                                <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function downloadSampleCSV() {
+    const csv = 'code,description,category\n' +
+        '22007,OIL SERVICE (FILTER) FOR 4X4,labour\n' +
+        '21044,WHEEL BALANCE ALLOY RIMS,tyre service\n' +
+        '21031,REPAIR & A/C PASSENGER,labour\n' +
+        '21019,WHEEL ALIGNMENT SMALL,tyre service\n' +
+        '21003,WHEEL BALANCE TRUCK,tyre service\n' +
+        '41005,TRAILER ALIGNMENT MECHANICAL SUSPENSION PER AXLE,tyre service / makill\n' +
+        '41003,STEERING AXLE ALIGNMENT NON-MICHELIN TYPE,tyre service / makill\n' +
+        '21037,TYRE FITTING-TRUCK,tyre service\n' +
+        '21035,WHEEL BALANCE 15-16 INCH,tyre service\n' +
+        '21002,WHEEL BALANCE 15-16 INCH,tyre service\n' +
+        '21012,TYRE FITTING SMALL,tyre service\n' +
+        '21013,TYRE ROTATION SERVICE 4X4,tyre service\n' +
+        '21020,WHEEL ALIGNMENT BIG,tyre service\n' +
+        '21017,TYRE ROTATION TRUCK,tyre service\n' +
+        '21027,TYRE ROTATION SERVICE TRUCK,tyre service\n' +
+        '22014,VEHICLE DIAGNOSIS FOR PASSENGER CAR,labour\n' +
+        '22015,VEHICLE DIAGNOSIS FOR 4X4,labour\n' +
+        '22016,VEHICLE DIAGNOSIS FOR TRUCK,labour\n' +
+        '11012,SERVICE CONTRACTS,labour\n' +
+        '11013,TYRE SERVICE CONTRACTS,tyre service\n' +
+        '21036,GREASE SERVICE 4X4,labour\n' +
+        '22005,OIL SERVICE OIL FILTER AIR FILTER ADDITIONAL DIFF OIL FUEL FILTER HYDRAULIC ENGINE COOLANT BRAKE FLUID FOR PASSENGER,labour\n' +
+        '22006,OIL SERVICE OIL FILTER AIR FILTER ADDITIONAL DIFF OIL FUEL FILTER HYDRAULIC ENGINE COOLANT BRAKE FLUID FOR PASSENGER,labour\n' +
+        '22008,SHOCK ABSORBERS SERVICE FOR 4X4,labour\n' +
+        '22009,SHOCK ABSORBERS SERVICE FOR TRUCK,labour\n' +
+        '22011,AC SERVICE FOR PASSENGER CAR,labour\n' +
+        '22012,AC SERVICE FOR 4X4,labour\n' +
+        '22013,AC SERVICE FOR TRUCK,labour\n' +
+        '31004,TYRE MAINTENANCE SERVICE,tyre service\n' +
+        '31005,SPARE SERVICE,labour\n' +
+        '33001,INSPECTION,labour\n' +
+        '32007,SERVICE FOR STAFF CARS,labour\n' +
+        '38001,TBL SERVICE CONTRACT KWANZA,labour\n' +
+        '38002,TYRE MANAGEMENT SERVICE CHARGE BUDIN,labour\n' +
+        '12005,DELIVERY CHARGES,labour\n' +
+        '22001,BRAKE PAD FITMENT PER AXLE FOR PASSENGER CAR,labour\n' +
+        '22004,BRAKE PAD FITMENT PER AXLE FOR TRUCK,labour\n' +
+        '11013,TYRE SERVICE CONTRACTS,tyre service\n' +
+        '21096,GREASE SERVICE 4X4,labour\n' +
+        '22202,SHOCK ABSORBERS SERVICE FOR TRUCK,labour\n' +
+        '33002,INTEGRATED SERVICE,labour';
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'labour_codes_sample.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function downloadSampleExcel() {
+    try {
+        const data = [
+            ['code', 'description', 'category'],
+            ['22007', 'OIL SERVICE (FILTER) FOR 4X4', 'labour'],
+            ['21044', 'WHEEL BALANCE ALLOY RIMS', 'tyre service'],
+            ['21031', 'REPAIR & A/C PASSENGER', 'labour'],
+            ['21019', 'WHEEL ALIGNMENT SMALL', 'tyre service'],
+            ['21003', 'WHEEL BALANCE TRUCK', 'tyre service'],
+            ['41005', 'TRAILER ALIGNMENT MECHANICAL SUSPENSION PER AXLE', 'tyre service / makill'],
+            ['41003', 'STEERING AXLE ALIGNMENT NON-MICHELIN TYPE', 'tyre service / makill'],
+            ['21037', 'TYRE FITTING-TRUCK', 'tyre service'],
+            ['21035', 'WHEEL BALANCE 15-16 INCH', 'tyre service'],
+            ['21002', 'WHEEL BALANCE 15-16 INCH', 'tyre service'],
+            ['21012', 'TYRE FITTING SMALL', 'tyre service'],
+            ['21013', 'TYRE ROTATION SERVICE 4X4', 'tyre service'],
+            ['21020', 'WHEEL ALIGNMENT BIG', 'tyre service'],
+            ['21017', 'TYRE ROTATION TRUCK', 'tyre service'],
+            ['21027', 'TYRE ROTATION SERVICE TRUCK', 'tyre service'],
+            ['22014', 'VEHICLE DIAGNOSIS FOR PASSENGER CAR', 'labour'],
+            ['22015', 'VEHICLE DIAGNOSIS FOR 4X4', 'labour'],
+            ['22016', 'VEHICLE DIAGNOSIS FOR TRUCK', 'labour'],
+            ['11012', 'SERVICE CONTRACTS', 'labour'],
+            ['11013', 'TYRE SERVICE CONTRACTS', 'tyre service'],
+            ['21036', 'GREASE SERVICE 4X4', 'labour'],
+            ['22005', 'OIL SERVICE OIL FILTER AIR FILTER ADDITIONAL DIFF OIL FUEL FILTER HYDRAULIC ENGINE COOLANT BRAKE FLUID FOR PASSENGER', 'labour'],
+            ['22006', 'OIL SERVICE OIL FILTER AIR FILTER ADDITIONAL DIFF OIL FUEL FILTER HYDRAULIC ENGINE COOLANT BRAKE FLUID FOR PASSENGER', 'labour'],
+            ['22008', 'SHOCK ABSORBERS SERVICE FOR 4X4', 'labour'],
+            ['22009', 'SHOCK ABSORBERS SERVICE FOR TRUCK', 'labour'],
+            ['22011', 'AC SERVICE FOR PASSENGER CAR', 'labour'],
+            ['22012', 'AC SERVICE FOR 4X4', 'labour'],
+            ['22013', 'AC SERVICE FOR TRUCK', 'labour'],
+            ['31004', 'TYRE MAINTENANCE SERVICE', 'tyre service'],
+            ['31005', 'SPARE SERVICE', 'labour'],
+            ['33001', 'INSPECTION', 'labour'],
+            ['32007', 'SERVICE FOR STAFF CARS', 'labour'],
+            ['38001', 'TBL SERVICE CONTRACT KWANZA', 'labour'],
+            ['38002', 'TYRE MANAGEMENT SERVICE CHARGE BUDIN', 'labour'],
+            ['12005', 'DELIVERY CHARGES', 'labour'],
+            ['22001', 'BRAKE PAD FITMENT PER AXLE FOR PASSENGER CAR', 'labour'],
+            ['22004', 'BRAKE PAD FITMENT PER AXLE FOR TRUCK', 'labour'],
+            ['21096', 'GREASE SERVICE 4X4', 'labour'],
+            ['22202', 'SHOCK ABSORBERS SERVICE FOR TRUCK', 'labour'],
+            ['33002', 'INTEGRATED SERVICE', 'labour']
+        ];
+
+        let csv = data.map(row => row.map(cell => {
+            if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"') || cell.includes('\n'))) {
+                return '"' + cell.replace(/"/g, '""') + '"';
+            }
+            return cell;
+        }).join(',')).join('\n');
+
+        const blob = new Blob([csv], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'labour_codes_sample.xlsx');
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (e) {
+        alert('Excel download not fully supported. Please use the CSV sample instead.');
+        downloadSampleCSV();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.querySelector('input[name="import_file"]');
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            const fileName = this.files[0]?.name || '';
+            if (fileName) {
+                console.log('Selected file:', fileName);
+            }
+        });
+    }
+
+    const manualForm = document.querySelector('.labour-code-form');
+    if (manualForm) {
+        manualForm.addEventListener('submit', function(e) {
+            const action = e.submitter.value;
+            if (action === 'manual') {
+                const code = document.getElementById('codeInput').value.trim();
+                const description = document.getElementById('descriptionInput').value.trim();
+                const category = document.getElementById('categoryInput').value.trim();
+
+                if (!code || !description || !category) {
+                    e.preventDefault();
+                    alert('Please fill in all required fields');
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

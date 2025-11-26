@@ -1,0 +1,839 @@
+<!-- Invoice Upload & Extraction Modal - Extract-Only (No Manual Entry) -->
+<div class="modal fade" id="uploadInvoiceModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header bg-light border-bottom">
+        <h5 class="modal-title">
+          <i class="fa fa-file-invoice me-2"></i>Upload & Extract Invoice for Order {{ order.order_number }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <form id="invoiceUploadForm" method="post" action="{% url 'tracker:api_create_invoice_from_upload' %}">
+        {% csrf_token %}
+        <input type="hidden" name="selected_order_id" value="{{ order.id }}">
+        {% if vehicle and vehicle.plate_number %}<input type="hidden" name="plate" value="{{ vehicle.plate_number }}">{% endif %}
+        {% if order.customer %}<input type="hidden" name="customer_id" value="{{ order.customer.id }}">{% endif %}
+        {% if order.customer %}<input type="hidden" name="pre_selected_customer_id" value="{{ order.customer.id }}">{% endif %}
+
+        <!-- Hidden fields for extracted data -->
+        <div id="extractedHiddenFields"></div>
+
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+          <!-- Info Alert -->
+          <div class="alert alert-info mb-3 border-0" role="alert">
+            <div class="d-flex align-items-center">
+              <i class="fa fa-lightbulb me-3" style="font-size: 18px;"></i>
+              <div>
+                <strong>Upload Invoice PDF:</strong> Upload your invoice document to automatically extract customer and payment information. All extracted data will be displayed below for review before creating the invoice. Amounts are preserved exactly as extracted from the PDF without recalculation.
+              </div>
+            </div>
+          </div>
+
+          <!-- Upload Section -->
+          <div class="card mb-3">
+            <div class="card-header bg-light">
+              <strong><i class="fa fa-file-upload me-2"></i>Select PDF File</strong>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <label class="form-label">Invoice PDF File *</label>
+                <input type="file" id="invoiceFile" class="form-control" accept=".pdf" data-max-file-size="50485760" required>
+                <small class="text-muted">PDF files only. Maximum 50MB.</small>
+              </div>
+
+              <div id="uploadError" class="alert alert-danger" style="display:none" role="alert"></div>
+              <div id="extractionSuccess" class="alert alert-success" style="display:none" role="alert">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <i class="fa fa-check-circle me-2"></i>Invoice data extracted successfully! Review the extracted information below.
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-info" id="toggleAddOrderTypeBtn" style="display:none;" data-bs-toggle="modal" data-bs-target="#addOrderTypeModal">
+                    <i class="fa fa-plus me-1"></i>Add Another Order Type
+                  </button>
+                </div>
+              </div>
+              <div id="uploadProgress" class="progress" style="display:none;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" id="uploadProgressBar" role="progressbar" style="width: 0%"></div>
+              </div>
+
+              <button type="button" id="uploadBtn" class="btn btn-primary">
+                <i class="fa fa-upload me-2"></i>Upload & Extract
+              </button>
+            </div>
+          </div>
+
+          <!-- Extracted Data Preview with Editable Fields -->
+          <div id="extractedDataPreview" style="display:none;" class="card mb-3">
+            <div class="card-header bg-light">
+              <strong><i class="fa fa-check-circle me-2 text-success"></i>Extracted Information</strong>
+              <small class="text-muted ms-2">Review and edit before confirming</small>
+            </div>
+            <div class="card-body" style="max-height: 600px; overflow-y: auto; background-color: #f8f9fa;">
+              <!-- Customer Information - Editable -->
+              <div class="mb-4">
+                <h6 class="text-muted mb-3"><i class="fa fa-user me-2"></i>Customer Information</h6>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label small fw-medium">Customer Name *</label>
+                    <input type="text" id="editableCustomerName" class="form-control form-control-sm" placeholder="Customer name">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-medium">Phone *</label>
+                    <input type="text" id="editableCustomerPhone" class="form-control form-control-sm" placeholder="Phone number">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-medium">Email</label>
+                    <input type="email" id="editableCustomerEmail" class="form-control form-control-sm" placeholder="Email address">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-medium">Address</label>
+                    <input type="text" id="editableCustomerAddress" class="form-control form-control-sm" placeholder="Address">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-medium">Customer Type</label>
+                    <select id="editableCustomerType" class="form-select form-select-sm">
+                      <option value="">-- Select --</option>
+                      <option value="personal">Personal</option>
+                      <option value="company">Private Company</option>
+                      <option value="ngo">NGO</option>
+                      <option value="government">Government</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <hr class="my-3">
+
+              <!-- Invoice Information - Editable -->
+              <div class="mb-4">
+                <h6 class="text-muted mb-3"><i class="fa fa-file-invoice me-2"></i>Invoice Details</h6>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label small fw-medium">Invoice Number</label>
+                    <input type="text" id="editableInvoiceNo" class="form-control form-control-sm" placeholder="Invoice number">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-medium">Invoice Date</label>
+                    <input type="date" id="editableInvoiceDate" class="form-control form-control-sm">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-medium">Code No</label>
+                    <input type="text" id="editableCodeNo" class="form-control form-control-sm" placeholder="Supplier code number">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-medium">Reference</label>
+                    <input type="text" id="editableReference" class="form-control form-control-sm" placeholder="Customer PO or reference">
+                  </div>
+                </div>
+              </div>
+
+              <hr class="my-3">
+
+              <!-- Payment Information -->
+              <div class="mb-0">
+                <h6 class="text-muted mb-2"><i class="fa fa-money-bill me-2"></i>Payment Summary</h6>
+                <div class="row g-2">
+                  <div class="col-md-4">
+                    <small class="text-muted d-block">Subtotal(Net)</small>
+                    <p id="previewSubtotal" class="mb-0 fw-medium">-</p>
+                  </div>
+                  <div class="col-md-4">
+                    <small class="text-muted d-block">Tax/VAT</small>
+                    <p id="previewTax" class="mb-0 fw-medium">-</p>
+                  </div>
+                  <div class="col-md-4">
+                    <small class="text-muted d-block">Total Amount(Gross)</small>
+                    <p id="previewTotal" class="mb-0 fs-6"><strong class="text-success">-</strong></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Additional Order Types Section -->
+          <div id="additionalOrderTypesSection" class="card mb-3" style="display:none;">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+              <div>
+                <strong><i class="fa fa-layer-group me-2"></i>Additional Order Types</strong>
+                <small class="text-muted ms-2">This invoice covers multiple order types</small>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="addOrderTypeBtn" data-bs-toggle="modal" data-bs-target="#addOrderTypeModal">
+                <i class="fa fa-plus me-1"></i>Add
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <div id="additionalOrderTypesList" class="list-group list-group-flush">
+                <!-- Additional order types will be added here -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Extracted Line Items -->
+          <div id="extractedLineItemsSection" class="card mb-3" style="display:none;">
+            <div class="card-header bg-light">
+              <strong><i class="fa fa-list me-2"></i>Line Items</strong>
+              <small class="text-muted ms-2">Items from invoice with categories</small>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0 extracted-line-items-table">
+                  <thead class="table-light">
+                    <tr style="background-color: #f8f9fa;">
+                      <th style="width: 4%; text-align: center;">#</th>
+                      <th style="width: 8%;">Code</th>
+                      <th style="width: 28%; word-break: break-word;">Description</th>
+                      <th style="width: 12%;">Type</th>
+                      <th style="width: 8%;">Unit</th>
+                      <th style="width: 6%; text-align: center;">Qty</th>
+                      <th style="width: 10%; text-align: right;">Unit Price</th>
+                      <th style="width: 12%; text-align: right;">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody id="lineItemsBody" class="extracted-line-items-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="border-top: 1px solid #dee2e6; padding: 20px; background: #f8f9fa;">
+          <div class="text-center w-100 mb-3">
+            <p class="text-muted small mb-0">
+              <i class="fa fa-info-circle me-1"></i>
+              Upload an invoice PDF to extract data. Review the information and click Create to save the invoice.
+            </p>
+          </div>
+          <div class="w-100 d-flex gap-2" style="margin-top: -15px;">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+              <i class="fa fa-times me-2"></i>Cancel
+            </button>
+            <button type="submit" class="btn btn-success btn-lg flex-grow-1" id="createInvoiceBtn" style="font-weight: 600;" disabled>
+              <i class="fa fa-check-circle me-2"></i>Create Order
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+
+<style>
+.extracted-line-items-table {
+  font-size: 0.85rem;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.extracted-line-items-table thead {
+  background-color: #f8f9fa;
+  position: sticky;
+  top: 0;
+}
+
+.extracted-line-items-table th,
+.extracted-line-items-table td {
+  padding: 0.6rem 0.4rem;
+  vertical-align: middle;
+  border: 1px solid #dee2e6;
+}
+
+.extracted-line-items-table th {
+  font-weight: 600;
+  text-align: left;
+  background-color: #f8f9fa;
+}
+
+.extracted-line-items-table td {
+  background-color: #fff;
+}
+
+.extracted-line-items-table code {
+  background-color: #f0f0f0;
+  padding: 0.15rem 0.35rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #333;
+}
+
+.extracted-line-items-table .badge {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.65rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.extracted-line-items-table .badge-labour {
+  background-color: #0dcaf0;
+  color: white;
+}
+
+.extracted-line-items-table .badge-service {
+  background-color: #0d6efd;
+  color: white;
+}
+
+.extracted-line-items-table .badge-sales {
+  background-color: #198754;
+  color: white;
+}
+
+@media (max-width: 1200px) {
+  .extracted-line-items-table {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .extracted-line-items-table {
+    font-size: 0.75rem;
+  }
+
+  .extracted-line-items-table th,
+  .extracted-line-items-table td {
+    padding: 0.4rem 0.25rem;
+  }
+
+  .extracted-line-items-table .badge {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.5rem;
+  }
+}
+</style>
+
+<script>
+(function() {
+  const fileInput = document.getElementById('invoiceFile');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const errorBox = document.getElementById('uploadError');
+  const successMsg = document.getElementById('extractionSuccess');
+  const progressWrap = document.getElementById('uploadProgress');
+  const progressBar = document.getElementById('uploadProgressBar');
+  const previewSection = document.getElementById('extractedDataPreview');
+  const lineItemsSection = document.getElementById('extractedLineItemsSection');
+  const lineItemsBody = document.getElementById('lineItemsBody');
+  const hiddenFieldsDiv = document.getElementById('extractedHiddenFields');
+  const invoiceForm = document.getElementById('invoiceUploadForm');
+  const createInvoiceBtn = document.getElementById('createInvoiceBtn');
+  const toggleAddOrderTypeBtn = document.getElementById('toggleAddOrderTypeBtn');
+  const additionalOrderTypesSection = document.getElementById('additionalOrderTypesSection');
+  const additionalOrderTypesList = document.getElementById('additionalOrderTypesList');
+  const confirmAddOrderTypeBtn = document.getElementById('confirmAddOrderTypeBtn');
+  const additionalOrderTypeSelect = document.getElementById('additionalOrderTypeSelect');
+  const additionalOrderTypeReason = document.getElementById('additionalOrderTypeReason');
+  const addOrderTypeModal = document.getElementById('addOrderTypeModal');
+
+  let additionalOrderTypes = [];
+
+  if (!uploadBtn) return;
+
+  function getCSRF() {
+    const name = 'csrftoken=';
+    const parts = document.cookie.split(';');
+    for (let i = 0; i < parts.length; i++) {
+      const c = parts[i].trim();
+      if (c.indexOf(name) === 0) return c.substring(name.length);
+    }
+    const el = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    return el ? el.value : '';
+  }
+
+  function setProgress(p) {
+    if (progressBar) progressBar.style.width = Math.max(0, Math.min(100, p)) + '%';
+    if (progressWrap) progressWrap.style.display = p > 0 && p < 100 ? 'block' : (p >= 100 ? 'block' : 'none');
+  }
+
+  invoiceForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    // Validate required fields
+    const customerName = document.getElementById('editableCustomerName')?.value.trim();
+    const customerPhone = document.getElementById('editableCustomerPhone')?.value.trim();
+
+    if (!customerName) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = '<i class="fa fa-warning me-2"></i>Customer name is required.';
+      errorBox.className = 'alert alert-warning';
+      return;
+    }
+
+    if (!customerPhone) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = '<i class="fa fa-warning me-2"></i>Customer phone is required.';
+      errorBox.className = 'alert alert-warning';
+      return;
+    }
+
+    // Update form fields from editable inputs
+    updateFormFieldsFromEditable();
+
+    if (!fileInput.files || !fileInput.files[0]) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = '<i class="fa fa-warning me-2"></i>No PDF file was uploaded or extracted.';
+      errorBox.className = 'alert alert-warning';
+      return;
+    }
+
+    createInvoiceBtn.disabled = true;
+    const originalBtnText = createInvoiceBtn.innerHTML;
+    createInvoiceBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Creating...';
+
+    try {
+      const formData = new FormData(invoiceForm);
+
+      const response = await fetch(invoiceForm.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        errorBox.style.display = 'none';
+        successMsg.innerHTML = '<i class="fa fa-check-circle me-2"></i>Invoice created successfully! Redirecting...';
+        successMsg.style.display = 'block';
+
+        setTimeout(() => {
+          if (data.redirect_url) {
+            window.location.href = data.redirect_url;
+          } else {
+            window.location.reload();
+          }
+        }, 1500);
+      } else {
+        throw new Error(data.message || 'Failed to create invoice');
+      }
+    } catch (err) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = '<i class="fa fa-exclamation-triangle me-2"></i>' + (err?.message || 'Failed to create invoice');
+      errorBox.className = 'alert alert-danger';
+      console.error('Form submission error:', err);
+    } finally {
+      createInvoiceBtn.disabled = false;
+      createInvoiceBtn.innerHTML = originalBtnText;
+    }
+  });
+
+  uploadBtn.addEventListener('click', async function() {
+    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = '<i class="fa fa-warning me-2"></i>Please select a PDF file to upload.';
+      errorBox.className = 'alert alert-warning';
+      successMsg.style.display = 'none';
+      return;
+    }
+
+    const file = fileInput.files[0];
+    if (file.size > 50 * 1024 * 1024) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = '<i class="fa fa-warning me-2"></i>File is too large. Maximum size is 50MB.';
+      errorBox.className = 'alert alert-warning';
+      return;
+    }
+
+    errorBox.style.display = 'none';
+    successMsg.style.display = 'none';
+    setProgress(5);
+    uploadBtn.disabled = true;
+    const originalText = uploadBtn.innerHTML;
+    uploadBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Extracting...';
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const plateField = invoiceForm.querySelector('[name="plate"]');
+      if (plateField && plateField.value) {
+        formData.append('plate', plateField.value);
+      }
+
+      const orderIdField = invoiceForm.querySelector('[name="selected_order_id"]');
+      if (orderIdField && orderIdField.value) {
+        formData.append('selected_order_id', orderIdField.value);
+      }
+
+      const customerIdField = invoiceForm.querySelector('[name="customer_id"]');
+      if (customerIdField && customerIdField.value) {
+        formData.append('pre_selected_customer_id', customerIdField.value);
+      }
+
+      setProgress(10);
+
+      const response = await fetch('{% url "tracker:api_extract_invoice_preview" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': getCSRF()
+        }
+      });
+
+      setProgress(90);
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data || !data.success) {
+        throw new Error(data?.message || 'Extraction failed');
+      }
+
+      setProgress(100);
+
+      const header = data.header || {};
+      populatePreview(header);
+
+      const items = data.items || [];
+      populateLineItems(items);
+
+      populateFormFields(header);
+
+      successMsg.style.display = 'block';
+      previewSection.style.display = 'block';
+      if (items.length > 0) {
+        lineItemsSection.style.display = 'block';
+      }
+
+      createInvoiceBtn.disabled = false;
+
+      // Show toggle button to add order types
+      if (toggleAddOrderTypeBtn) {
+        toggleAddOrderTypeBtn.style.display = 'block';
+      }
+
+      errorBox.style.display = 'none';
+
+    } catch (err) {
+      setProgress(0);
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = '<i class="fa fa-exclamation-triangle me-2"></i>' + (err?.message || 'Upload failed');
+      errorBox.className = 'alert alert-danger';
+      successMsg.style.display = 'none';
+      createInvoiceBtn.disabled = true;
+      console.error('Extraction error:', err);
+    } finally {
+      uploadBtn.disabled = false;
+      uploadBtn.innerHTML = originalText;
+      setProgress(0);
+    }
+  });
+
+  function populatePreview(header) {
+    // Populate editable customer fields
+    const customerFieldMap = {
+      'editableCustomerName': 'customer_name',
+      'editableCustomerPhone': 'phone',
+      'editableCustomerEmail': 'email',
+      'editableCustomerAddress': 'address'
+    };
+
+    Object.keys(customerFieldMap).forEach(elementId => {
+      const el = document.getElementById(elementId);
+      if (el) {
+        const value = header[customerFieldMap[elementId]] || '';
+        el.value = value;
+      }
+    });
+
+    // Populate editable invoice detail fields
+    const invoiceFieldMap = {
+      'editableInvoiceNo': 'invoice_no',
+      'editableCodeNo': 'code_no',
+      'editableReference': 'reference'
+    };
+
+    Object.keys(invoiceFieldMap).forEach(elementId => {
+      const el = document.getElementById(elementId);
+      if (el) {
+        const value = header[invoiceFieldMap[elementId]] || '';
+        el.value = value;
+      }
+    });
+
+    // Populate invoice date
+    const dateEl = document.getElementById('editableInvoiceDate');
+    if (dateEl) {
+      const dateStr = header.date || '';
+      dateEl.value = formatDateForForm(dateStr);
+    }
+
+    // Populate payment summary display
+    if (document.getElementById('previewSubtotal')) {
+      const subtotal = header.subtotal || 0;
+      document.getElementById('previewSubtotal').textContent = parseFloat(subtotal).toLocaleString('en-US', { minimumFractionDigits: 2 });
+    }
+
+    if (document.getElementById('previewTax')) {
+      const tax = header.tax || 0;
+      document.getElementById('previewTax').textContent = parseFloat(tax).toLocaleString('en-US', { minimumFractionDigits: 2 });
+    }
+
+    if (document.getElementById('previewTotal')) {
+      const total = header.total || 0;
+      document.getElementById('previewTotal').textContent = parseFloat(total).toLocaleString('en-US', { minimumFractionDigits: 2 });
+    }
+  }
+
+  function populateLineItems(items) {
+    lineItemsBody.innerHTML = '';
+    hiddenFieldsDiv.innerHTML = '';
+
+    if (!items || items.length === 0) {
+      lineItemsSection.style.display = 'none';
+      return;
+    }
+
+    lineItemsSection.style.display = 'block';
+
+    items.forEach((item, idx) => {
+      const code = item.code || '';
+      const desc = item.description || '';
+      const unit = item.unit || '';
+      const qty = item.qty || 1;
+      const rate = item.rate || 0;
+      const value = item.value || (qty * rate);
+      const category = item.category || 'Sales';
+      const orderType = item.order_type || 'sales';
+      const colorClass = item.color_class || 'badge-sales';
+
+      // Create badge HTML for category
+      const categoryBadgeMap = {
+        'badge-labour': { bg: 'bg-info', icon: 'fa-tools', text: 'Labour' },
+        'badge-service': { bg: 'bg-primary', icon: 'fa-wrench', text: 'Service' },
+        'badge-sales': { bg: 'bg-success', icon: 'fa-shopping-cart', text: 'Sales' }
+      };
+
+      const badgeInfo = categoryBadgeMap[colorClass] || categoryBadgeMap['badge-sales'];
+      const categoryBadge = `<span class="badge ${badgeInfo.bg} rounded-pill"><i class="fa ${badgeInfo.icon} me-1"></i>${badgeInfo.text}</span>`;
+
+      const row = document.createElement('tr');
+      row.dataset.itemIndex = idx;
+      row.innerHTML = `
+        <td style="text-align: center;"><small>${idx + 1}</small></td>
+        <td><small><code>${code}</code></small></td>
+        <td><small>${desc}</small></td>
+        <td><small>${categoryBadge}</small></td>
+        <td><small>${unit}</small></td>
+        <td style="text-align: center;"><small>${Number(qty).toLocaleString('en-US', {maximumFractionDigits: 0, minimumFractionDigits: 0})}</small></td>
+        <td style="text-align: right;"><small>${parseFloat(rate).toLocaleString('en-US', {minimumFractionDigits: 2})}</small></td>
+        <td style="text-align: right;"><small><strong>${value.toLocaleString('en-US', {minimumFractionDigits: 2})}</strong></small></td>
+      `;
+      lineItemsBody.appendChild(row);
+
+      const fields = [
+        { name: 'item_code[]', value: code },
+        { name: 'item_description[]', value: desc },
+        { name: 'item_unit[]', value: unit },
+        { name: 'item_qty[]', value: qty },
+        { name: 'item_price[]', value: rate },
+        { name: 'item_value[]', value: value }
+      ];
+
+      fields.forEach(field => {
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = field.name;
+        inp.value = field.value;
+        inp.dataset.itemIndex = idx;
+        hiddenFieldsDiv.appendChild(inp);
+      });
+    });
+  }
+
+  function populateFormFields(header) {
+    const subtotal = header.subtotal || 0;
+    const tax = header.tax || 0;
+    const total = header.total || 0;
+
+    // Create function to get field value - prefer editable field if available, fallback to header
+    function getFieldValue(elementId, headerKey) {
+      const el = document.getElementById(elementId);
+      return el && el.value ? el.value : (header[headerKey] || '');
+    }
+
+    function getFieldNumValue(elementId, headerKey) {
+      const el = document.getElementById(elementId);
+      return el && el.value ? parseFloat(el.value) : (header[headerKey] || 0);
+    }
+
+    // Build form fields from editable inputs and header data
+    const fields = [
+      { name: 'customer_name', value: getFieldValue('editableCustomerName', 'customer_name') },
+      { name: 'customer_phone', value: getFieldValue('editableCustomerPhone', 'phone') },
+      { name: 'customer_email', value: getFieldValue('editableCustomerEmail', 'email') },
+      { name: 'customer_address', value: getFieldValue('editableCustomerAddress', 'address') },
+      { name: 'customer_type', value: document.getElementById('editableCustomerType')?.value || 'personal' },
+      { name: 'invoice_number', value: getFieldValue('editableInvoiceNo', 'invoice_no') },
+      { name: 'invoice_date', value: document.getElementById('editableInvoiceDate')?.value || '' },
+      { name: 'subtotal', value: subtotal },
+      { name: 'tax_amount', value: tax },
+      { name: 'total_amount', value: total },
+      { name: 'code_no', value: getFieldValue('editableCodeNo', 'code_no') },
+      { name: 'reference', value: getFieldValue('editableReference', 'reference') }
+    ];
+
+    fields.forEach(field => {
+      let inp = invoiceForm.querySelector(`[name="${field.name}"]`);
+      if (!inp) {
+        inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = field.name;
+        hiddenFieldsDiv.appendChild(inp);
+      }
+      inp.value = field.value;
+    });
+
+    // Add seller information if provided
+    const sellerKeys = ['seller_name', 'seller_address', 'seller_phone', 'seller_email', 'seller_tax_id', 'seller_vat_reg'];
+    sellerKeys.forEach(key => {
+      if (header[key]) {
+        let inp = invoiceForm.querySelector(`[name="${key}"]`);
+        if (!inp) {
+          inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = key;
+          hiddenFieldsDiv.appendChild(inp);
+        }
+        inp.value = header[key];
+      }
+    });
+  }
+
+  function updateFormFieldsFromEditable() {
+    // Update hidden form fields from current editable field values before form submission
+    const fields = [
+      { name: 'customer_name', elementId: 'editableCustomerName' },
+      { name: 'customer_phone', elementId: 'editableCustomerPhone' },
+      { name: 'customer_email', elementId: 'editableCustomerEmail' },
+      { name: 'customer_address', elementId: 'editableCustomerAddress' },
+      { name: 'customer_type', elementId: 'editableCustomerType' },
+      { name: 'invoice_number', elementId: 'editableInvoiceNo' },
+      { name: 'invoice_date', elementId: 'editableInvoiceDate' },
+      { name: 'code_no', elementId: 'editableCodeNo' },
+      { name: 'reference', elementId: 'editableReference' }
+    ];
+
+    fields.forEach(field => {
+      const el = document.getElementById(field.elementId);
+      if (el) {
+        let inp = invoiceForm.querySelector(`[name="${field.name}"]`);
+        if (!inp) {
+          inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = field.name;
+          hiddenFieldsDiv.appendChild(inp);
+        }
+        inp.value = el.value;
+      }
+    });
+  }
+
+  function formatDateForForm(dateStr) {
+    if (!dateStr) return '';
+    const dateMatch = String(dateStr).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (dateMatch) {
+      return dateMatch[3] + '-' + String(dateMatch[2]).padStart(2, '0') + '-' + String(dateMatch[1]).padStart(2, '0');
+    }
+    return dateStr;
+  }
+
+  function renderAdditionalOrderTypes() {
+    additionalOrderTypesList.innerHTML = '';
+    additionalOrderTypesSection.style.display = additionalOrderTypes.length > 0 ? 'block' : 'none';
+
+    additionalOrderTypes.forEach((item, idx) => {
+      const typeLabel = item.type === 'service' ? 'Service Order' : item.type === 'sales' ? 'Sales Order' : 'Inquiry';
+      const typeIcon = item.type === 'service' ? 'wrench' : item.type === 'sales' ? 'shopping-cart' : 'question-circle';
+      const typeBadgeClass = item.type === 'service' ? 'bg-primary' : item.type === 'sales' ? 'bg-success' : 'bg-info';
+
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'list-group-item border-bottom';
+      itemDiv.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="flex-grow-1">
+            <div class="mb-1">
+              <span class="badge ${typeBadgeClass}">
+                <i class="fa fa-${typeIcon} me-1"></i>${typeLabel}
+              </span>
+            </div>
+            <small class="text-muted d-block mb-1"><strong>Reason:</strong></small>
+            <p class="mb-0 text-dark">${item.reason}</p>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="window.removeAdditionalOrderType(${idx})">
+            <i class="fa fa-trash me-1"></i>Remove
+          </button>
+        </div>
+      `;
+      additionalOrderTypesList.appendChild(itemDiv);
+    });
+  }
+
+  window.removeAdditionalOrderType = function(idx) {
+    if (confirm('Remove this additional order type?')) {
+      additionalOrderTypes.splice(idx, 1);
+      renderAdditionalOrderTypes();
+    }
+  };
+
+  if (confirmAddOrderTypeBtn) {
+    confirmAddOrderTypeBtn.addEventListener('click', function() {
+      const orderType = additionalOrderTypeSelect.value.trim();
+      const reason = additionalOrderTypeReason.value.trim();
+
+      if (!orderType) {
+        errorBox.style.display = 'block';
+        errorBox.innerHTML = '<i class="fa fa-warning me-2"></i>Please select an order type.';
+        errorBox.className = 'alert alert-warning';
+        return;
+      }
+
+      if (!reason) {
+        errorBox.style.display = 'block';
+        errorBox.innerHTML = '<i class="fa fa-warning me-2"></i>Please provide a reason for the additional order type.';
+        errorBox.className = 'alert alert-warning';
+        return;
+      }
+
+      additionalOrderTypes.push({ type: orderType, reason: reason });
+
+      additionalOrderTypeSelect.value = '';
+      additionalOrderTypeReason.value = '';
+
+      renderAdditionalOrderTypes();
+
+      // Show success message instead of closing modal
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = '<i class="fa fa-check-circle me-2 text-success"></i>Order type added successfully! Add more or close to continue.';
+      errorBox.className = 'alert alert-success';
+
+      // Keep modal open for adding more order types - user can click X or outside to close when done
+      // Optionally auto-clear the form for next entry (already done above)
+    });
+  }
+
+  invoiceForm.addEventListener('submit', function(e) {
+    const hiddenOrderTypes = hiddenFieldsDiv.querySelector('input[name="additional_order_types"]');
+    if (hiddenOrderTypes) {
+      hiddenOrderTypes.value = JSON.stringify(additionalOrderTypes);
+    } else if (additionalOrderTypes.length > 0) {
+      const inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = 'additional_order_types';
+      inp.value = JSON.stringify(additionalOrderTypes);
+      hiddenFieldsDiv.appendChild(inp);
+    }
+  });
+})();
+</script>
