@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Customer, Vehicle, Order, InventoryItem, Branch, ServiceType, ServiceAddon, LabourCode
+from .models import Customer, Vehicle, Order, InventoryItem, Branch, ServiceType, ServiceAddon, LabourCode, DelayReasonCategory, DelayReason
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
@@ -191,3 +191,41 @@ class BranchAdmin(admin.ModelAdmin):
             if exact_qs.exists():
                 return exact_qs, False
         return super().get_search_results(request, queryset, search_term)
+
+
+@admin.register(DelayReasonCategory)
+class DelayReasonCategoryAdmin(admin.ModelAdmin):
+    list_display = ("get_category_display", "is_active", "created_at")
+    list_filter = ("is_active", "created_at")
+    search_fields = ("category",)
+    readonly_fields = ("created_at",)
+
+    fieldsets = (
+        ('Category Information', {
+            'fields': ('category', 'description', 'is_active'),
+            'classes': ('wide', 'extrapretty'),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at',),
+            'classes': ('wide', 'extrapretty'),
+        }),
+    )
+
+
+@admin.register(DelayReason)
+class DelayReasonAdmin(admin.ModelAdmin):
+    list_display = ("reason_text", "category", "is_active", "created_at")
+    list_filter = ("category", "is_active", "created_at")
+    search_fields = ("reason_text", "category__category")
+    readonly_fields = ("created_at",)
+
+    fieldsets = (
+        ('Delay Reason Information', {
+            'fields': ('category', 'reason_text', 'is_active'),
+            'classes': ('wide', 'extrapretty'),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at',),
+            'classes': ('wide', 'extrapretty'),
+        }),
+    )

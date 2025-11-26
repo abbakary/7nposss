@@ -374,6 +374,28 @@
               </div>
             </div>
             {% endif %}
+
+            <!-- 9+ Hours Delay Reason (if applicable) -->
+            {% if order.exceeded_9_hours or exceeds_9_hours %}
+            <div class="col-12">
+              <div class="alert {% if order.exceeded_9_hours %}alert-danger bg-danger bg-opacity-10 border-danger{% else %}alert-warning bg-warning bg-opacity-10 border-warning{% endif %}">
+                <div class="d-flex align-items-start">
+                  <i class="fa {% if order.exceeded_9_hours %}fa-exclamation-circle{% else %}fa-clock{% endif %} {% if order.exceeded_9_hours %}text-danger{% else %}text-warning{% endif %} me-3 mt-1"></i>
+                  <div>
+                    <strong>{% if order.exceeded_9_hours %}Order Exceeded 9 Working Hours{% else %}Order Approaching 9 Working Hours{% endif %}</strong>
+                    {% if order.delay_reason %}
+                    <p class="mb-0 mt-1 text-dark">
+                      <strong>Category:</strong> {{ order.delay_reason.get_category_display }}<br>
+                      <strong>Reason:</strong> {{ order.delay_reason.reason_text }}
+                    </p>
+                    {% elif exceeds_9_hours %}
+                    <p class="mb-0 mt-1 text-muted"><em>No delay reason recorded yet.</em></p>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -1364,14 +1386,43 @@
               </div>
               {% endif %}
 
-              <!-- Overrun Reason -->
-              <div class="mb-3">
+              <!-- Delay Reason for Orders Exceeding 9+ Hours -->
+              <div class="mb-3" id="delayReasonSection">
                 <label class="form-label fw-bold text-dark mb-2">
-                  <i class="fa fa-comment-alt me-2 text-info"></i>Reason for Delays <small class="fw-normal text-muted">(optional)</small>
+                  <i class="fa fa-exclamation-circle me-2 text-danger"></i><span id="delayReasonLabel">Reason for Delays</span> <span id="delayReasonRequired" class="text-danger" style="display:none;">*</span><small class="fw-normal text-muted" id="delayReasonOptionalText"> (optional)</small>
                 </label>
-                <textarea name="signature_reason" id="signatureReasonField" class="form-control" rows="3" placeholder="e.g., Additional repairs discovered, customer delayed arrival, supply shortage, technical issues, unforeseen circumstances..."></textarea>
+
+                <!-- Category Dropdown -->
+                <div class="mb-2">
+                  <label class="form-label text-muted small">Category</label>
+                  <select id="delayReasonCategory" name="delay_reason_category" class="form-select">
+                    <option value="">-- Select Category --</option>
+                    <option value="parts">Parts-Related Delays</option>
+                    <option value="technical">Technical / Diagnostic Issues</option>
+                    <option value="workload">High Workload / Operational Capacity</option>
+                    <option value="customer">Customer-Related Causes</option>
+                    <option value="administrative">Administrative / System Issues</option>
+                    <option value="quality">Quality-Control & Testing Delays</option>
+                    <option value="external">External / Environmental Factors</option>
+                  </select>
+                </div>
+
+                <!-- Specific Reason Dropdown -->
+                <div class="mb-2">
+                  <label class="form-label text-muted small">Specific Reason</label>
+                  <select id="delayReasonDropdown" name="delay_reason" class="form-select">
+                    <option value="">-- Select Specific Reason --</option>
+                  </select>
+                </div>
+
+                <!-- Custom Comments -->
+                <div>
+                  <label class="form-label text-muted small">Additional Comments (optional)</label>
+                  <textarea id="delayReasonComments" name="delay_reason_comments" class="form-control form-control-sm" rows="2" placeholder="Add any additional details about the delay..."></textarea>
+                </div>
+
                 <small class="text-muted d-block mt-2">
-                  <i class="fa fa-info-circle me-1"></i>Explain any reasons why this order took longer than expected or any special circumstances.
+                  <i class="fa fa-info-circle me-1"></i><span id="delayReasonHelpText">Select the reason if order exceeded 9 working hours.</span>
                 </small>
               </div>
             </div>
@@ -1511,6 +1562,147 @@
         // Open signature modal after reason is saved
         openSignatureModal();
       });
+    });
+  }
+})();
+</script>
+
+<!-- Delay Reason Dropdown Handler -->
+<script>
+(function(){
+  const exceeds9Hours = {{ exceeds_9_hours|lower }};
+
+  // Build delay reasons from Django context with fallback
+  const delayReasonsByCategoryJson = {};
+  try {
+    {% for category, reasons in delay_reasons_by_category.items %}
+      delayReasonsByCategoryJson['{{ category }}'] = [
+        {% for reason in reasons %}
+          { id: {{ reason.id }}, reason_text: '{{ reason.reason_text|escapejs }}' },
+        {% endfor %}
+      ];
+    {% endfor %}
+  } catch(e) {
+    console.warn('Failed to load delay reasons:', e);
+  }
+
+  // Fallback delay reasons if database is not initialized
+  if (Object.keys(delayReasonsByCategoryJson).length === 0) {
+    delayReasonsByCategoryJson['parts'] = [
+      { id: 1, reason_text: 'Spare parts out of stock' },
+      { id: 2, reason_text: 'Incorrect part delivered or mismatch with vehicle model' },
+      { id: 3, reason_text: 'Delayed parts shipment from supplier' },
+      { id: 4, reason_text: 'Need for special-order parts (rare or imported)' },
+    ];
+    delayReasonsByCategoryJson['technical'] = [
+      { id: 5, reason_text: 'Unexpected faults discovered during routine service' },
+      { id: 6, reason_text: 'Complex diagnostics needed (electrical issues, sensor faults, ECU problems)' },
+      { id: 7, reason_text: 'Need for specialist technician to inspect certain problems' },
+      { id: 8, reason_text: 'Software updates or reprogramming taking longer' },
+    ];
+    delayReasonsByCategoryJson['workload'] = [
+      { id: 9, reason_text: 'High number of vehicles in queue' },
+      { id: 10, reason_text: 'Insufficient technicians available (leave, training, or peak hours)' },
+      { id: 11, reason_text: 'Workshop overload due to special promotions or seasonal rush' },
+      { id: 12, reason_text: 'Equipment or service bay not available' },
+    ];
+    delayReasonsByCategoryJson['customer'] = [
+      { id: 13, reason_text: 'Customer delayed approval for additional repairs or parts' },
+      { id: 14, reason_text: 'Inaccurate information provided about the issue' },
+      { id: 15, reason_text: 'Late vehicle drop-off vs. scheduled time' },
+    ];
+    delayReasonsByCategoryJson['administrative'] = [
+      { id: 16, reason_text: 'POS system or billing delays' },
+      { id: 17, reason_text: 'Job order not updated correctly' },
+      { id: 18, reason_text: 'Miscommunication between front desk and workshop' },
+      { id: 19, reason_text: 'Warranty validation delays' },
+    ];
+    delayReasonsByCategoryJson['quality'] = [
+      { id: 20, reason_text: 'Extended road testing required' },
+      { id: 21, reason_text: 'Rechecking after repair for safety or accuracy' },
+      { id: 22, reason_text: 'Final inspection backlog' },
+    ];
+    delayReasonsByCategoryJson['external'] = [
+      { id: 23, reason_text: 'Power outage' },
+      { id: 24, reason_text: 'Bad weather affecting testing (e.g., rain for brake tests)' },
+      { id: 25, reason_text: 'Transport limitations (for outsourced tasks like painting)' },
+    ];
+  }
+
+  const delayReasonCategory = document.getElementById('delayReasonCategory');
+  const delayReasonDropdown = document.getElementById('delayReasonDropdown');
+  const delayReasonSection = document.getElementById('delayReasonSection');
+  const delayReasonLabel = document.getElementById('delayReasonLabel');
+  const delayReasonRequired = document.getElementById('delayReasonRequired');
+  const delayReasonOptionalText = document.getElementById('delayReasonOptionalText');
+  const delayReasonHelpText = document.getElementById('delayReasonHelpText');
+  const completeForm = document.getElementById('completeForm');
+  const footerSignAndComplete = document.getElementById('footerSignAndComplete');
+
+  // Initialize visibility and requirement
+  function updateDelayReasonUI() {
+    if (exceeds9Hours) {
+      delayReasonRequired.style.display = 'inline';
+      delayReasonOptionalText.style.display = 'none';
+      delayReasonSection.classList.add('border', 'border-danger', 'bg-danger', 'bg-opacity-10', 'p-3', 'rounded');
+      delayReasonHelpText.textContent = 'This order exceeded 9 working hours. You must select a delay reason.';
+    }
+  }
+
+  // Populate specific reasons based on category
+  function populateReasons(category) {
+    delayReasonDropdown.innerHTML = '<option value="">-- Select Specific Reason --</option>';
+    if (category && delayReasonsByCategoryJson[category]) {
+      delayReasonsByCategoryJson[category].forEach(function(reason) {
+        const option = document.createElement('option');
+        option.value = reason.id;
+        option.textContent = reason.reason_text;
+        delayReasonDropdown.appendChild(option);
+      });
+    }
+  }
+
+  // Event listeners
+  if (delayReasonCategory) {
+    delayReasonCategory.addEventListener('change', function() {
+      populateReasons(this.value);
+      // Clear the dropdown selection when category changes
+      delayReasonDropdown.value = '';
+    });
+  }
+
+  // Validate delay reason on form submission
+  if (completeForm && exceeds9Hours) {
+    completeForm.addEventListener('submit', function(e) {
+      const selectedReason = delayReasonDropdown.value;
+      if (!selectedReason) {
+        e.preventDefault();
+        alert('Please select a delay reason before completing this order.');
+        return false;
+      }
+    });
+  }
+
+  // Also validate when clicking footer button
+  if (footerSignAndComplete && exceeds9Hours) {
+    const originalListener = footerSignAndComplete.onclick;
+    footerSignAndComplete.addEventListener('click', function(e) {
+      const selectedReason = delayReasonDropdown.value;
+      if (!selectedReason) {
+        e.preventDefault();
+        alert('Please select a delay reason before completing this order.');
+        return false;
+      }
+    });
+  }
+
+  // Initialize UI on page load
+  updateDelayReasonUI();
+
+  // Set delay reason data attribute on form for server-side handling
+  if (delayReasonDropdown && completeForm) {
+    completeForm.addEventListener('submit', function() {
+      // The form field name is 'delay_reason' so it will be submitted automatically
     });
   }
 })();

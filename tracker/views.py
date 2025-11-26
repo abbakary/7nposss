@@ -3273,6 +3273,42 @@ def order_detail(request: HttpRequest, pk: int):
     except Exception:
         line_item_categories = {}
 
+    # Check if order exceeds 9+ working hours
+    exceeds_9_hours = False
+    if order.started_at:
+        from .utils.time_utils import is_order_overdue
+        exceeds_9_hours = is_order_overdue(order.started_at) if order.status == 'in_progress' else (
+            order.actual_duration and order.actual_duration >= (9 * 60)  # 9 hours in minutes
+        )
+
+    # Get delay reason categories and reasons
+    delay_reason_categories = []
+    delay_reasons_by_category = {}
+    try:
+        from tracker.models import DelayReasonCategory, DelayReason
+        import json
+        delay_reason_categories = list(DelayReasonCategory.objects.filter(is_active=True))
+        for category in delay_reason_categories:
+            reasons = list(DelayReason.objects.filter(category=category, is_active=True).values('id', 'reason_text'))
+            delay_reasons_by_category[category.category] = reasons
+        # Convert to JSON string for template
+        delay_reasons_json = {}
+        for category in delay_reason_categories:
+            reasons = list(DelayReason.objects.filter(category=category, is_active=True).values('id', 'reason_text'))
+            delay_reasons_json[category.category] = reasons
+    except Exception:
+        delay_reasons_json = {}
+
+    # Prepare delay reasons JSON for template
+    delay_reasons_for_template = {}
+    try:
+        from tracker.models import DelayReasonCategory, DelayReason
+        for category_obj in delay_reason_categories:
+            reasons_list = list(DelayReason.objects.filter(category=category_obj, is_active=True).values('id', 'reason_text'))
+            delay_reasons_for_template[category_obj.category] = reasons_list
+    except Exception:
+        delay_reasons_for_template = delay_reasons_by_category
+
     context = {
         "order": order,
         "invoice": invoice,
@@ -3280,6 +3316,9 @@ def order_detail(request: HttpRequest, pk: int):
         "time_metrics": time_metrics,
         "available_invoices": available_invoices,
         "line_item_categories": line_item_categories,
+        "exceeds_9_hours": exceeds_9_hours,
+        "delay_reason_categories": delay_reason_categories,
+        "delay_reasons_by_category": delay_reasons_for_template,
     }
     return render(request, "tracker/order_detail.html", context)
 
@@ -3370,6 +3409,35 @@ def complete_order(request: HttpRequest, pk: int):
                     return redirect('tracker:order_detail', pk=o.id)
         except Exception:
             pass
+
+    # Check if order exceeds 9+ working hours and require delay reason
+    exceeds_9_hours = False
+    try:
+        from .utils.time_utils import is_order_overdue
+        if o.started_at:
+            exceeds_9_hours = is_order_overdue(o.started_at)
+    except Exception:
+        pass
+
+    if exceeds_9_hours:
+        # Get delay reason from POST
+        delay_reason_id = request.POST.get('delay_reason')
+        if not delay_reason_id:
+            messages.error(request, 'Order has exceeded 9 working hours. Please select a delay reason before completing.')
+            return redirect('tracker:order_detail', pk=o.id)
+
+        # Save delay reason
+        try:
+            from tracker.models import DelayReason
+            delay_reason = DelayReason.objects.get(id=delay_reason_id)
+            o.delay_reason = delay_reason
+            o.delay_reason_reported_at = timezone.now()
+            o.delay_reason_reported_by = request.user
+            o.exceeded_9_hours = True
+            o.save(update_fields=['delay_reason', 'delay_reason_reported_at', 'delay_reason_reported_by', 'exceeded_9_hours'])
+        except Exception as e:
+            messages.error(request, f'Error saving delay reason: {str(e)}')
+            return redirect('tracker:order_detail', pk=o.id)
 
     if not sig and sig_data.startswith('data:image/') and ';base64,' in sig_data:
         try:

@@ -225,6 +225,12 @@ class Order(models.Model):
     overrun_reported_at = models.DateTimeField(blank=True, null=True)
     overrun_reported_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders_overrun_reported')
 
+    # Delay reason for orders that exceeded 9+ working hours
+    delay_reason = models.ForeignKey('DelayReason', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders', help_text="Reason for delay if order exceeded 9 hours")
+    delay_reason_reported_at = models.DateTimeField(blank=True, null=True)
+    delay_reason_reported_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders_delay_reason_reported')
+    exceeded_9_hours = models.BooleanField(default=False, help_text="Whether order exceeded 9 working hours")
+
     # Job card/identification number for quick order lookup (optional)
     job_card_number = models.CharField(max_length=64, blank=True, null=True, unique=True)
 
@@ -740,6 +746,57 @@ class InvoicePayment(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_payment_method_display()} - {self.amount}"
+
+
+class DelayReasonCategory(models.Model):
+    """Categories for delay reasons when orders exceed 9+ hours"""
+    CATEGORY_CHOICES = [
+        ('parts', 'Parts-Related Delays'),
+        ('technical', 'Technical / Diagnostic Issues'),
+        ('workload', 'High Workload / Operational Capacity'),
+        ('customer', 'Customer-Related Causes'),
+        ('administrative', 'Administrative / System Issues'),
+        ('quality', 'Quality-Control & Testing Delays'),
+        ('external', 'External / Environmental Factors'),
+    ]
+
+    category = models.CharField(max_length=32, choices=CATEGORY_CHOICES, unique=True)
+    description = models.TextField(blank=True, null=True, help_text="Description of this delay category")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['category']
+        verbose_name_plural = 'Delay Reason Categories'
+        indexes = [
+            models.Index(fields=['category'], name='idx_delay_category'),
+            models.Index(fields=['is_active'], name='idx_delay_category_active'),
+        ]
+
+    def __str__(self) -> str:
+        return self.get_category_display()
+
+
+class DelayReason(models.Model):
+    """Specific delay reasons within categories"""
+    category = models.ForeignKey(DelayReasonCategory, on_delete=models.CASCADE, related_name='reasons')
+    reason_text = models.CharField(max_length=255, help_text="Specific delay reason")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['category', 'reason_text']
+        unique_together = [['category', 'reason_text']]
+        indexes = [
+            models.Index(fields=['category'], name='idx_delay_reason_category'),
+            models.Index(fields=['is_active'], name='idx_delay_reason_active'),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_category_display()} - {self.reason_text}" if hasattr(self, 'category') else self.reason_text
+
+    def get_category_display(self):
+        return self.category.get_category_display() if self.category else ''
 
 
 class InquiryNote(models.Model):
