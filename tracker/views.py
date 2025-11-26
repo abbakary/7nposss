@@ -4768,7 +4768,7 @@ def api_notifications_summary(request: HttpRequest):
     overdue_hours = int(request.GET.get('overdue_hours', 24) or 24)
 
     # Normalize statuses once per request
-    _mark_overdue_orders(hours=overdue_hours)
+    _mark_overdue_orders()
 
     # Use timezone-aware date for consistency
     today_date = timezone.localdate()
