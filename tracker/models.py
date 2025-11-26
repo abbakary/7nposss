@@ -690,6 +690,15 @@ class InvoiceLineItem(models.Model):
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Tax percentage for this line item")
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, editable=False)
 
+    # Order type from labour code matching (sales, service, labour, unknown)
+    order_type = models.CharField(
+        max_length=16,
+        choices=[('sales', 'Sales'), ('service', 'Service'), ('labour', 'Labour'), ('unknown', 'Unknown')],
+        default='unknown',
+        db_index=True,
+        help_text="Order type determined from item code or category"
+    )
+
     # Tracking
     created_at = models.DateTimeField(auto_now_add=True)
 
