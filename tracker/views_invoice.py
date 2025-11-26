@@ -688,7 +688,22 @@ def invoice_detail(request, pk):
             if form.is_valid():
                 line_item = form.save(commit=False)
                 line_item.invoice = invoice
+
+                # Determine order_type from item code if available
+                if line_item.code:
+                    try:
+                        from tracker.views_invoice_upload import _get_item_code_categories
+                        code_categories = _get_item_code_categories([line_item.code])
+                        if line_item.code in code_categories:
+                            line_item.order_type = code_categories[line_item.code].get('order_type', 'unknown')
+                    except Exception as e:
+                        logger.warning(f"Failed to determine order_type for code {line_item.code}: {e}")
+                        line_item.order_type = 'unknown'
+                else:
+                    line_item.order_type = 'unknown'
+
                 line_item.save()
+                invoice.calculate_totals().save()
                 messages.success(request, 'Line item added.')
                 return redirect('tracker:invoice_detail', pk=invoice.pk)
 
