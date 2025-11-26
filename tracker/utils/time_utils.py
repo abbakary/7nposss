@@ -1,105 +1,14 @@
 """
-Time utilities for calculating working hours, estimated duration, and overdue status.
-Working hours are defined as 8:00 AM to 5:00 PM (9 hours per day).
+Time utilities for calculating order duration and overdue status.
+Overdue threshold: 9 calendar hours (simple calculation).
 """
 
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from django.utils import timezone
 
 
-# Working hours constants
-WORK_START_HOUR = 8  # 8:00 AM
-WORK_END_HOUR = 17   # 5:00 PM
-WORKING_HOURS_PER_DAY = 9  # 8 AM to 5 PM = 9 hours
-OVERDUE_THRESHOLD_HOURS = 9  # Mark order as overdue after 9 working hours of service (not 24 calendar hours)
-
-
-def get_work_start_time(dt: datetime) -> datetime:
-    """Get the start of working day (8 AM) for a given date."""
-    if not dt:
-        return None
-    work_start = dt.replace(hour=WORK_START_HOUR, minute=0, second=0, microsecond=0)
-    return work_start
-
-
-def get_work_end_time(dt: datetime) -> datetime:
-    """Get the end of working day (5 PM) for a given date."""
-    if not dt:
-        return None
-    work_end = dt.replace(hour=WORK_END_HOUR, minute=0, second=0, microsecond=0)
-    return work_end
-
-
-def is_during_working_hours(dt: datetime) -> bool:
-    """Check if a datetime falls during working hours (8 AM - 5 PM)."""
-    if not dt:
-        return False
-    hour = dt.hour
-    return WORK_START_HOUR <= hour < WORK_END_HOUR
-
-
-def calculate_working_hours_between(start_dt: datetime, end_dt: datetime) -> float:
-    """
-    Calculate the number of working hours between two datetimes.
-    Working hours are 8 AM to 5 PM (9 hours per day).
-    
-    Args:
-        start_dt: Start datetime
-        end_dt: End datetime
-        
-    Returns:
-        Number of working hours between start and end (float)
-    """
-    if not start_dt or not end_dt:
-        return 0.0
-    
-    # Ensure both datetimes are timezone-aware
-    if start_dt.tzinfo is None:
-        start_dt = timezone.make_aware(start_dt)
-    if end_dt.tzinfo is None:
-        end_dt = timezone.make_aware(end_dt)
-    
-    # If end is before start, return 0
-    if end_dt <= start_dt:
-        return 0.0
-    
-    total_working_hours = 0.0
-    current_date = start_dt.date()
-    end_date = end_dt.date()
-    
-    while current_date <= end_date:
-        # Get work start and end times for current date
-        day_work_start = timezone.make_aware(
-            datetime.combine(current_date, time(WORK_START_HOUR, 0, 0))
-        )
-        day_work_end = timezone.make_aware(
-            datetime.combine(current_date, time(WORK_END_HOUR, 0, 0))
-        )
-        
-        # Determine the effective start and end times for this day
-        if current_date == start_dt.date():
-            # First day: use actual start time if after work start, otherwise use work start
-            effective_start = max(start_dt, day_work_start)
-        else:
-            # Subsequent days: use work start time
-            effective_start = day_work_start
-        
-        if current_date == end_dt.date():
-            # Last day: use actual end time if before work end, otherwise use work end
-            effective_end = min(end_dt, day_work_end)
-        else:
-            # Previous days: use work end time
-            effective_end = day_work_end
-        
-        # Only count time if it's within working hours
-        if effective_start < effective_end:
-            hours = (effective_end - effective_start).total_seconds() / 3600.0
-            total_working_hours += hours
-        
-        # Move to next day
-        current_date += timedelta(days=1)
-    
-    return total_working_hours
+# Simple overdue threshold: 9 calendar hours
+OVERDUE_THRESHOLD_HOURS = 9
 
 
 def calculate_estimated_duration(started_at: datetime, completed_at: datetime) -> int | None:
