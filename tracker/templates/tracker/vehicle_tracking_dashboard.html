@@ -1729,6 +1729,110 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    function renderServiceTimeline(vehicles) {
+        const timelineContainer = document.getElementById('serviceTimeline');
+        const timelineEmpty = document.getElementById('timelineEmpty');
+        const timelineSection = document.getElementById('timelineSection');
+
+        if (!timelineSection) return;
+
+        // Collect all service events from all vehicles
+        const events = [];
+        vehicles.forEach(vehicle => {
+            if (vehicle.invoices && vehicle.invoices.length > 0) {
+                vehicle.invoices.forEach(invoice => {
+                    events.push({
+                        date: new Date(invoice.invoice_date),
+                        invoice_date: invoice.invoice_date,
+                        plate_number: vehicle.plate_number,
+                        customer_name: vehicle.customer_name,
+                        invoice_number: invoice.invoice_number,
+                        amount: invoice.total_amount,
+                        categories: invoice.categories || [],
+                        order_number: invoice.order_number,
+                        vehicle_id: vehicle.id,
+                        status: invoice.status || 'completed'
+                    });
+                });
+            }
+        });
+
+        if (events.length === 0) {
+            timelineContainer.style.display = 'none';
+            timelineEmpty.style.display = 'block';
+            timelineSection.style.display = 'block';
+            return;
+        }
+
+        // Sort events by date (newest first)
+        events.sort((a, b) => b.date - a.date);
+
+        // Create timeline HTML
+        let timelineHTML = '';
+        const maxEvents = 10; // Show latest 10 events
+
+        events.slice(0, maxEvents).forEach((event, index) => {
+            const statusClass = event.status === 'completed' ? 'completed' :
+                               event.status === 'pending' ? 'pending' : 'in-progress';
+            const statusIcon = event.status === 'completed' ? 'fa-check' :
+                              event.status === 'pending' ? 'fa-clock' : 'fa-spinner';
+            const dateObj = event.date;
+            const dateStr = dateObj.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const categoriesHtml = event.categories.length > 0
+                ? event.categories.map(cat => `<span class="badge-custom badge-service" style="font-size: 0.75rem; margin-right: 4px;">${cat}</span>`).join('')
+                : '<span style="color: #999; font-size: 0.85rem;">General Service</span>';
+
+            timelineHTML += `
+                <div class="timeline-item">
+                    <div class="timeline-dot ${statusClass}">
+                        <i class="fa ${statusIcon}"></i>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-date">${dateStr}</div>
+                        <div class="timeline-title">
+                            <i class="fa fa-car" style="color: var(--primary-color); margin-right: 8px;"></i>
+                            ${event.plate_number} - ${event.customer_name}
+                        </div>
+                        <div class="timeline-detail">
+                            <div style="margin-bottom: 8px;">
+                                <strong>Invoice:</strong> ${event.invoice_number}
+                                ${event.order_number ? ` | <strong>Order:</strong> ${event.order_number}` : ''}
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                ${categoriesHtml}
+                            </div>
+                            <div>
+                                <strong style="color: var(--success-color); font-size: 1.1rem;">
+                                    ${formatCurrency(event.amount)}
+                                </strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        if (events.length > maxEvents) {
+            timelineHTML += `
+                <div style="text-align: center; padding: 20px; color: #999;">
+                    <small><i class="fa fa-ellipsis-h"></i> Showing ${maxEvents} of ${events.length} recent services</small>
+                </div>
+            `;
+        }
+
+        timelineContainer.innerHTML = timelineHTML;
+        timelineEmpty.style.display = 'none';
+        timelineContainer.style.display = 'block';
+        timelineSection.style.display = 'block';
+    }
+
     function renderVehiclesTable(vehicles) {
         const tableBody = document.getElementById('vehiclesTableBody');
         const tableContainer = document.getElementById('vehiclesTableContainer');
@@ -1743,6 +1847,9 @@ document.addEventListener('DOMContentLoaded', function() {
         tableContainer.style.display = 'block';
         emptyState.style.display = 'none';
         tableBody.innerHTML = '';
+
+        // Render timeline before table
+        renderServiceTimeline(vehicles);
 
         // Show charts section
         const chartsRow = document.getElementById('chartsRow');
