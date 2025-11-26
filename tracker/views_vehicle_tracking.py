@@ -421,6 +421,53 @@ def api_vehicle_tracking_data(request):
 
         vehicle_data.sort(key=lambda x: x['total_spent'], reverse=True)
         logger.info(f"Final vehicle_data count: {len(vehicle_data)}")
+
+        # Calculate revenue breakdown by order type for the selected date range
+        revenue_by_type = {
+            'sales': 0,
+            'service': 0,
+            'labour': 0,
+            'unknown': 0,
+            'total': 0,
+        }
+        try:
+            # Get all invoices in the date range for the vehicles being displayed
+            all_invoice_ids = []
+            for v_data in vehicle_data:
+                for inv in v_data.get('invoices', []):
+                    # Extract invoice ID from the invoices in vehicle_data
+                    pass
+
+            # Alternative: calculate from the invoices already fetched
+            for v_data in vehicle_data:
+                for inv_data in v_data.get('invoices', []):
+                    # The invoice_list was already created, but we need actual invoice objects
+                    pass
+
+            # Get line items for all invoices in the date range
+            line_items = InvoiceLineItem.objects.filter(
+                invoice__invoice_date__gte=start_date,
+                invoice__invoice_date__lte=end_date,
+                invoice__vehicle_id__in=[v['id'] for v in vehicle_data if v['id']]
+            ).select_related('invoice')
+
+            if user_branch:
+                line_items = line_items.filter(invoice__branch=user_branch)
+
+            for line_item in line_items:
+                order_type = line_item.order_type or 'unknown'
+                line_value = int(line_item.line_total + line_item.tax_amount) if line_item.tax_amount else int(line_item.line_total)
+
+                if order_type in revenue_by_type:
+                    revenue_by_type[order_type] += line_value
+                else:
+                    revenue_by_type['unknown'] += line_value
+
+            # Calculate total
+            revenue_by_type['total'] = sum([v for k, v in revenue_by_type.items() if k != 'total'])
+        except Exception as e:
+            logger.warning(f"Error calculating revenue by order type for vehicle tracking: {e}")
+
         summary = {
             'total_vehicles': len(vehicle_data),
             'total_spent': int(sum(v['total_spent'] for v in vehicle_data)),
@@ -431,7 +478,8 @@ def api_vehicle_tracking_data(request):
                 'in_progress': sum(v['order_stats']['in_progress'] for v in vehicle_data),
                 'pending': sum(v['order_stats']['pending'] for v in vehicle_data),
                 'overdue': sum(v['order_stats']['overdue'] for v in vehicle_data),
-            }
+            },
+            'revenue_by_type': revenue_by_type,
         }
         logger.info(f"Summary: {summary}")
         return JsonResponse({
