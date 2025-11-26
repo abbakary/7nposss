@@ -1303,20 +1303,23 @@ document.addEventListener('DOMContentLoaded', function() {
             search: filters.search
         };
 
-        fetch(buildApiUrl('/tracker/api/vehicles/tracking/data/', trackingParams)).then(r => r.json())
-        .then(trackingData => {
-            if (trackingData.success) {
-                renderMetrics(trackingData.summary);
-                renderVehiclesTable(trackingData.data);
-                lastTrackingVehicles = trackingData.data || [];
-            }
-            showLoadingSpinner(false);
-            isInitialLoad = false;
-        }).catch(error => {
-            console.error('Error loading dashboard data:', error);
-            showLoadingSpinner(false);
-            isInitialLoad = false;
-        });
+        fetch(buildApiUrl('/tracker/api/vehicles/tracking/data/', trackingParams))
+            .then(r => r.json())
+            .then(trackingData => {
+                if (trackingData.success) {
+                    renderMetrics(trackingData.summary);
+                    renderVehiclesTable(trackingData.data);
+                    lastTrackingVehicles = trackingData.data || [];
+                } else {
+                    console.error('API returned success: false', trackingData);
+                }
+                showLoadingSpinner(false);
+                isInitialLoad = false;
+            }).catch(error => {
+                console.error('Error loading dashboard data:', error);
+                showLoadingSpinner(false);
+                isInitialLoad = false;
+            });
     }
     
     function renderMetrics(summary) {
