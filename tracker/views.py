@@ -2686,7 +2686,7 @@ def orders_list(request: HttpRequest):
     from django.db.models import Q, Sum, Count
 
     # Persist overdue statuses before listing
-    _mark_overdue_orders(hours=24)
+    _mark_overdue_orders()
 
     # Get timezone from cookie or use default
     tzname = request.COOKIES.get('django_timezone')
