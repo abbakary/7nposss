@@ -599,17 +599,28 @@ def api_upload_extract_invoice(request):
         inv.tax_amount = ensure_decimal(extracted_tax, None)
         inv.total_amount = ensure_decimal(extracted_total, None)
 
-        # If subtotal and tax weren't extracted but we have a total and line items,
-        # calculate subtotal from line items and derive tax
-        if (inv.subtotal is None or inv.subtotal == Decimal('0')) and \
-           (inv.tax_amount is None or inv.tax_amount == Decimal('0')):
+        # If subtotal is missing/zero but we have line items, calculate it from them
+        # This ensures Net Revenue KPI is never zero when there are actual line items
+        if inv.subtotal is None or inv.subtotal == Decimal('0'):
             has_items = inv.id and InvoiceLineItem.objects.filter(invoice=inv).exists()
             if has_items:
-                # Calculate from line items
-                inv.calculate_totals()
-            # If still no total amount, set sensible defaults
-            if inv.total_amount is None or inv.total_amount == Decimal('0'):
-                inv.total_amount = inv.subtotal + (inv.tax_amount or Decimal('0'))
+                # Calculate subtotal and VAT from line items
+                line_items_subtotal = sum(
+                    Decimal(str(item.line_total)) for item in inv.line_items.all()
+                )
+                if line_items_subtotal > 0:
+                    inv.subtotal = line_items_subtotal
+
+                    # If tax_amount wasn't extracted, calculate from line item taxes
+                    if inv.tax_amount is None or inv.tax_amount == Decimal('0'):
+                        per_item_tax = sum(
+                            Decimal(str(item.tax_amount or 0)) for item in inv.line_items.all()
+                        )
+                        inv.tax_amount = per_item_tax
+
+        # Ensure total_amount is set correctly
+        if inv.total_amount is None or inv.total_amount == Decimal('0'):
+            inv.total_amount = (inv.subtotal or Decimal('0')) + (inv.tax_amount or Decimal('0'))
 
         # Final defaults: ensure all are Decimal and not None
         inv.subtotal = inv.subtotal or Decimal('0')
