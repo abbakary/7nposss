@@ -431,55 +431,59 @@
                 </div>
                 <div class="main-kpi-body">
                     <div class="sub-kpi-grid">
-                        <!-- Sales Revenue -->
+                        <!-- Gross Revenue -->
                         <div class="sub-kpi-card revenue">
                             <div class="sub-kpi-icon bg-success">
-                                <i class="fa fa-shopping-cart"></i>
+                                <i class="fa fa-money-bill-wave"></i>
                             </div>
-                            <div class="sub-kpi-label">SALES TOTAL</div>
-                            <div class="sub-kpi-value">{{ revenue_by_type.sales|default:0|floatformat:0|intcomma }} TSH</div>
+                            <div class="sub-kpi-label">GROSS REVENUE</div>
+                            <div class="sub-kpi-value">{{ total_gross_revenue|default:0|floatformat:0|intcomma }} TSH</div>
                             <div class="sub-kpi-trend trend-up">
                                 <i class="fa fa-arrow-up"></i>
-                                Products & items
+                                All invoices total
                             </div>
                         </div>
 
-                        <!-- Service Revenue -->
+                        <!-- Net Revenue -->
                         <div class="sub-kpi-card revenue">
                             <div class="sub-kpi-icon bg-primary">
-                                <i class="fa fa-wrench"></i>
+                                <i class="fa fa-receipt"></i>
                             </div>
-                            <div class="sub-kpi-label">SERVICE TOTAL</div>
-                            <div class="sub-kpi-value">{{ revenue_by_type.service|default:0|floatformat:0|intcomma }} TSH</div>
+                            <div class="sub-kpi-label">NET REVENUE</div>
+                            <div class="sub-kpi-value">{{ total_net_revenue|default:0|floatformat:0|intcomma }} TSH</div>
                             <div class="sub-kpi-trend trend-up">
                                 <i class="fa fa-arrow-up"></i>
-                                Service work
+                                Subtotal value
                             </div>
                         </div>
 
-                        <!-- Labour Revenue -->
+                        <!-- VAT Total -->
                         <div class="sub-kpi-card revenue">
                             <div class="sub-kpi-icon bg-info">
-                                <i class="fa fa-tools"></i>
+                                <i class="fa fa-percent"></i>
                             </div>
-                            <div class="sub-kpi-label">LABOUR TOTAL</div>
-                            <div class="sub-kpi-value">{{ revenue_by_type.labour|default:0|floatformat:0|intcomma }} TSH</div>
+                            <div class="sub-kpi-label">VAT TOTAL</div>
+                            <div class="sub-kpi-value">{{ total_vat|default:0|floatformat:0|intcomma }} TSH</div>
                             <div class="sub-kpi-trend trend-up">
                                 <i class="fa fa-arrow-up"></i>
-                                Labour charges
+                                Tax collected
                             </div>
                         </div>
 
-                        <!-- Unknown/Other Revenue -->
+                        <!-- Order Type Breakdown (compact) -->
                         <div class="sub-kpi-card revenue">
                             <div class="sub-kpi-icon bg-warning">
-                                <i class="fa fa-question-circle"></i>
+                                <i class="fa fa-chart-pie"></i>
                             </div>
-                            <div class="sub-kpi-label">OTHER/UNKNOWN</div>
-                            <div class="sub-kpi-value">{{ revenue_by_type.unknown|default:0|floatformat:0|intcomma }} TSH</div>
+                            <div class="sub-kpi-label">REVENUE BREAKDOWN</div>
+                            <div style="font-size: 0.8rem; color: #333; margin: 0.5rem 0;">
+                                <div><strong>Sales:</strong> {{ revenue_by_type.sales|default:0|floatformat:0|intcomma }}</div>
+                                <div><strong>Service:</strong> {{ revenue_by_type.service|default:0|floatformat:0|intcomma }}</div>
+                                <div><strong>Labour:</strong> {{ revenue_by_type.labour|default:0|floatformat:0|intcomma }}</div>
+                            </div>
                             <div class="sub-kpi-trend trend-neutral">
                                 <i class="fa fa-chart-bar"></i>
-                                Unclassified items
+                                By category
                             </div>
                         </div>
                     </div>
