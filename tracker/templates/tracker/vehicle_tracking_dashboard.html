@@ -539,6 +539,347 @@
     color: #333;
 }
 
+.tracking-status-card {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 20px;
+    box-shadow: var(--box-shadow);
+    border-left: 5px solid var(--primary-color);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: var(--transition);
+    height: 100%;
+}
+
+.tracking-status-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.12);
+}
+
+.tracking-status-card.active-vehicles {
+    border-left-color: #0d6efd;
+    background: linear-gradient(135deg, rgba(13, 110, 253, 0.05) 0%, transparent 100%);
+}
+
+.tracking-status-card.services-completed {
+    border-left-color: #28a745;
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.05) 0%, transparent 100%);
+}
+
+.tracking-status-card.repeat-customers {
+    border-left-color: #20c997;
+    background: linear-gradient(135deg, rgba(32, 201, 151, 0.05) 0%, transparent 100%);
+}
+
+.tracking-status-card.total-revenue {
+    border-left-color: #ffc107;
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.05) 0%, transparent 100%);
+}
+
+.status-icon {
+    font-size: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: white;
+    flex-shrink: 0;
+}
+
+.tracking-status-card.active-vehicles .status-icon {
+    color: #0d6efd;
+}
+
+.tracking-status-card.services-completed .status-icon {
+    color: #28a745;
+}
+
+.tracking-status-card.repeat-customers .status-icon {
+    color: #20c997;
+}
+
+.tracking-status-card.total-revenue .status-icon {
+    color: #ffc107;
+}
+
+.status-content {
+    flex: 1;
+}
+
+.status-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #333;
+    line-height: 1.2;
+}
+
+.status-label {
+    font-size: 0.95rem;
+    color: #666;
+    font-weight: 500;
+    margin-top: 5px;
+}
+
+.status-trend {
+    font-size: 0.85rem;
+    color: #999;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.status-trend i {
+    font-size: 0.75rem;
+}
+
+.vehicle-tracking-section {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    padding: 20px;
+    margin-bottom: 20px;
+    transition: var(--transition);
+}
+
+.vehicle-tracking-section:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-title i {
+    color: var(--primary-color);
+}
+
+.tracking-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.tracking-metric-item {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid #e9ecef;
+    transition: var(--transition);
+}
+
+.tracking-metric-item:hover {
+    background: #f0f0f0;
+    border-color: var(--primary-color);
+}
+
+.metric-item-value {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    line-height: 1;
+    margin-bottom: 8px;
+}
+
+.metric-item-label {
+    font-size: 0.85rem;
+    color: #666;
+    font-weight: 500;
+}
+
+.vehicle-health-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+.health-score {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-weight: bold;
+    color: white;
+    flex-shrink: 0;
+}
+
+.health-score.excellent {
+    background-color: #28a745;
+}
+
+.health-score.good {
+    background-color: #20c997;
+}
+
+.health-score.fair {
+    background-color: #ffc107;
+    color: #333;
+}
+
+.health-score.poor {
+    background-color: #dc3545;
+}
+
+.health-content {
+    flex: 1;
+}
+
+.health-title {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.health-detail {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.comparison-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.comparison-card {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.comparison-label {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.comparison-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 8px;
+}
+
+.comparison-change {
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.comparison-change.positive {
+    color: #28a745;
+}
+
+.comparison-change.negative {
+    color: #dc3545;
+}
+
+.tracking-timeline {
+    position: relative;
+    padding: 20px 0;
+}
+
+.timeline-item {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 40px;
+    bottom: -20px;
+    width: 2px;
+    background: #e9ecef;
+}
+
+.timeline-item:last-child::before {
+    display: none;
+}
+
+.timeline-dot {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-color);
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+}
+
+.timeline-dot.completed {
+    background: var(--success-color);
+    border-color: var(--success-color);
+    color: white;
+}
+
+.timeline-dot.pending {
+    background: var(--warning-color);
+    border-color: var(--warning-color);
+    color: white;
+}
+
+.timeline-dot.in-progress {
+    background: var(--info-color);
+    border-color: var(--info-color);
+    color: white;
+}
+
+.timeline-content {
+    flex: 1;
+    padding-top: 5px;
+}
+
+.timeline-date {
+    font-size: 0.9rem;
+    color: #999;
+    margin-bottom: 4px;
+}
+
+.timeline-title {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.timeline-detail {
+    font-size: 0.9rem;
+    color: #666;
+}
+
 @media (max-width: 768px) {
     .filter-row {
         grid-template-columns: 1fr;
@@ -583,6 +924,25 @@
 
     .flow-arrow {
         font-size: 1rem;
+    }
+
+    .tracking-status-card {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .status-icon {
+        width: 50px;
+        height: 50px;
+        font-size: 2rem;
+    }
+
+    .tracking-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .comparison-metrics {
+        grid-template-columns: 1fr;
     }
 }
 </style>
