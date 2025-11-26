@@ -1821,8 +1821,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div style="font-size: 0.85rem; margin-top: 5px;">${trackingStatus}</div>
                 </td>
                 <td style="text-align: right;">
-                    <div><strong>${formatCurrency(vehicle.total_spent)}</strong></div>
-                    <small class="text-muted">Total / ${formatCurrency(avgSpending)} Avg</small>
+                    <div><strong style="color: var(--success-color);">${formatCurrency(vehicle.total_spent)}</strong></div>
+                    <small class="text-muted">Total</small>
+                    <small class="text-muted" style="display: block; margin-top: 4px;">Avg: ${formatCurrency(avgSpending)}</small>
                 </td>
                 <td style="text-align: right;">
                     <button class="btn btn-sm btn-outline-primary" onclick="viewVehicleDetails(${vehicle.id}, ${vehicle.customer_id}, '${vehicle.plate_number.replace(/'/g, "\'")}')">
