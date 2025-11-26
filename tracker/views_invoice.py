@@ -427,6 +427,8 @@ def api_upload_extract_invoice(request):
                 inv.tax_rate = Decimal('0')
 
         # Final validation - ensure all monetary fields are Decimal and not None
+        # If subtotal and tax are both 0 but total_amount is set, calculate them from line items
+        # This handles cases where extraction couldn't find these values but total was found
         inv.subtotal = inv.subtotal or Decimal('0')
         inv.tax_amount = inv.tax_amount or Decimal('0')
         inv.total_amount = inv.total_amount or (inv.subtotal + inv.tax_amount)
@@ -541,6 +543,15 @@ def api_upload_extract_invoice(request):
             return out
 
         aggregated = _aggregate_items(items) if items else []
+        # Get order type mapping for item codes
+        item_codes = [it.get('code') for it in aggregated if it.get('code')]
+        try:
+            from tracker.views_invoice_upload import _get_item_code_categories
+            code_order_types = _get_item_code_categories(item_codes)
+        except Exception as e:
+            logger.warning(f"Failed to get code categories: {e}")
+            code_order_types = {}
+
         # Replace previous items if reusing an existing invoice, then create new ones
         try:
             try:
@@ -553,9 +564,16 @@ def api_upload_extract_invoice(request):
                 qty = Decimal(str(it.get('qty') or '1'))
                 price = Decimal(str(it.get('unit_price') or '0'))
                 line_total = qty * price
+                code = it.get('code')
+
+                # Determine order_type from code
+                order_type = 'unknown'
+                if code and code in code_order_types:
+                    order_type = code_order_types[code].get('order_type', 'unknown')
+
                 to_create.append(InvoiceLineItem(
                     invoice=inv,
-                    code=it.get('code') or None,
+                    code=code or None,
                     description=it.get('description') or 'Item',
                     quantity=qty,
                     unit=it.get('unit') or None,
@@ -563,16 +581,52 @@ def api_upload_extract_invoice(request):
                     tax_rate=Decimal('0'),
                     line_total=line_total,
                     tax_amount=Decimal('0'),
+                    order_type=order_type,
                 ))
             if to_create:
                 InvoiceLineItem.objects.bulk_create(to_create)
+                logger.info(f"Created {len(to_create)} line items from extraction with order types")
         except Exception as e:
             logger.warning(f"Failed to bulk create invoice line items: {e}")
 
         # IMPORTANT: Preserve extracted Net, VAT, and Gross values for uploaded invoices
-        inv.subtotal = header.get('subtotal') or Decimal('0')
-        inv.tax_amount = header.get('tax') or Decimal('0')
-        inv.total_amount = header.get('total') or (inv.subtotal + inv.tax_amount)
+        # But if extraction didn't find subtotal/tax, calculate from line items
+        extracted_subtotal = header.get('subtotal')
+        extracted_tax = header.get('tax')
+        extracted_total = header.get('total')
+
+        inv.subtotal = ensure_decimal(extracted_subtotal, None)
+        inv.tax_amount = ensure_decimal(extracted_tax, None)
+        inv.total_amount = ensure_decimal(extracted_total, None)
+
+        # If subtotal is missing/zero but we have line items, calculate it from them
+        # This ensures Net Revenue KPI is never zero when there are actual line items
+        if inv.subtotal is None or inv.subtotal == Decimal('0'):
+            has_items = inv.id and InvoiceLineItem.objects.filter(invoice=inv).exists()
+            if has_items:
+                # Calculate subtotal and VAT from line items
+                line_items_subtotal = sum(
+                    Decimal(str(item.line_total)) for item in inv.line_items.all()
+                )
+                if line_items_subtotal > 0:
+                    inv.subtotal = line_items_subtotal
+
+                    # If tax_amount wasn't extracted, calculate from line item taxes
+                    if inv.tax_amount is None or inv.tax_amount == Decimal('0'):
+                        per_item_tax = sum(
+                            Decimal(str(item.tax_amount or 0)) for item in inv.line_items.all()
+                        )
+                        inv.tax_amount = per_item_tax
+
+        # Ensure total_amount is set correctly
+        if inv.total_amount is None or inv.total_amount == Decimal('0'):
+            inv.total_amount = (inv.subtotal or Decimal('0')) + (inv.tax_amount or Decimal('0'))
+
+        # Final defaults: ensure all are Decimal and not None
+        inv.subtotal = inv.subtotal or Decimal('0')
+        inv.tax_amount = inv.tax_amount or Decimal('0')
+        inv.total_amount = inv.total_amount or (inv.subtotal + inv.tax_amount)
+
         inv.save(update_fields=['subtotal', 'tax_amount', 'total_amount'])
 
         # Create payment record for tracking
@@ -645,7 +699,22 @@ def invoice_detail(request, pk):
             if form.is_valid():
                 line_item = form.save(commit=False)
                 line_item.invoice = invoice
+
+                # Determine order_type from item code if available
+                if line_item.code:
+                    try:
+                        from tracker.views_invoice_upload import _get_item_code_categories
+                        code_categories = _get_item_code_categories([line_item.code])
+                        if line_item.code in code_categories:
+                            line_item.order_type = code_categories[line_item.code].get('order_type', 'unknown')
+                    except Exception as e:
+                        logger.warning(f"Failed to determine order_type for code {line_item.code}: {e}")
+                        line_item.order_type = 'unknown'
+                else:
+                    line_item.order_type = 'unknown'
+
                 line_item.save()
+                invoice.calculate_totals().save()
                 messages.success(request, 'Line item added.')
                 return redirect('tracker:invoice_detail', pk=invoice.pk)
 

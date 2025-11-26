@@ -910,7 +910,8 @@ def api_create_order_from_modal(request):
                                     invoice=invoice,
                                     description=line.strip(),
                                     quantity=1,
-                                    unit_price=Decimal('0')
+                                    unit_price=Decimal('0'),
+                                    order_type='unknown'
                                 )
                 except Exception as e:
                     logger.warning(f"Failed to create invoice from upload: {e}")

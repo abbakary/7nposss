@@ -147,7 +147,8 @@ class Command(BaseCommand):
                         unit_price=Decimal('50000'),
                         line_total=Decimal('50000'),
                         tax_rate=Decimal('10'),
-                        tax_amount=Decimal('5000')
+                        tax_amount=Decimal('5000'),
+                        order_type='service'
                     )
 
                     # Create corresponding order
