@@ -431,32 +431,22 @@ def api_vehicle_tracking_data(request):
             'total': 0,
         }
         try:
-            # Get all invoices in the date range for the vehicles being displayed
-            all_invoice_ids = []
-            for v_data in vehicle_data:
-                for inv in v_data.get('invoices', []):
-                    # Extract invoice ID from the invoices in vehicle_data
-                    pass
-
-            # Alternative: calculate from the invoices already fetched
-            for v_data in vehicle_data:
-                for inv_data in v_data.get('invoices', []):
-                    # The invoice_list was already created, but we need actual invoice objects
-                    pass
-
-            # Get line items for all invoices in the date range
+            # Get all line items for invoices in the date range (including those without vehicle_id)
             line_items = InvoiceLineItem.objects.filter(
                 invoice__invoice_date__gte=start_date,
                 invoice__invoice_date__lte=end_date,
-                invoice__vehicle_id__in=[v['id'] for v in vehicle_data if v['id']]
+                invoice__status__in=['draft', 'issued', 'paid']
             ).select_related('invoice')
 
             if user_branch:
                 line_items = line_items.filter(invoice__branch=user_branch)
 
+            # Sum by order type
             for line_item in line_items:
                 order_type = line_item.order_type or 'unknown'
-                line_value = int(line_item.line_total + line_item.tax_amount) if line_item.tax_amount else int(line_item.line_total)
+                # Include line total plus tax amount if present
+                line_value = (line_item.line_total or Decimal('0')) + (line_item.tax_amount or Decimal('0'))
+                line_value = int(line_value)
 
                 if order_type in revenue_by_type:
                     revenue_by_type[order_type] += line_value
