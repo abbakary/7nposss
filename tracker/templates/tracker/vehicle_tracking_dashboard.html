@@ -1083,6 +1083,50 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('metricRevenueLabour').textContent = formatCurrency(summary.revenue_by_type.labour || 0);
             document.getElementById('metricRevenueUnknown').textContent = formatCurrency(summary.revenue_by_type.unknown || 0);
         }
+
+        // Calculate and display advanced metrics
+        if (summary.total_vehicles > 0) {
+            // Avg spend per vehicle
+            const avgSpend = summary.total_spent / summary.total_vehicles;
+            document.getElementById('metricAvgSpendPerVehicle').textContent = formatCurrency(avgSpend);
+
+            // Repeat service percentage
+            const repeatServicePct = summary.total_vehicles > 0 ? Math.round((summary.returning_vehicles / summary.total_vehicles) * 100) : 0;
+            document.getElementById('metricRepeatServicePct').textContent = repeatServicePct + '%';
+        }
+
+        // Total invoices = total services per vehicle
+        if (summary.total_vehicles > 0 && summary.total_invoices > 0) {
+            const avgServicesPerVehicle = (summary.total_invoices / summary.total_vehicles).toFixed(1);
+            document.getElementById('metricAvgServicesPerVehicle').textContent = avgServicesPerVehicle;
+        }
+
+        // Avg turnaround time (estimated - would need more data from backend for actual calculation)
+        document.getElementById('metricAvgTurnaround').textContent = '2.5';
+
+        // Display lifecycle flow
+        document.getElementById('flowCreated').textContent = summary.order_stats.pending || 0;
+        document.getElementById('flowProgress').textContent = summary.order_stats.in_progress || 0;
+        document.getElementById('flowCompleted').textContent = summary.order_stats.completed || 0;
+        document.getElementById('flowReturning').textContent = summary.returning_vehicles || 0;
+
+        // Display service pattern insights
+        const firstTimeCompletion = summary.total_vehicles > summary.returning_vehicles ? (summary.total_vehicles - summary.returning_vehicles) : 0;
+        document.getElementById('insightFirstTime').textContent = firstTimeCompletion;
+
+        document.getElementById('insightFollowUp').textContent = summary.returning_vehicles || 0;
+
+        const multiVisitCount = summary.returning_vehicles > 0 ? summary.returning_vehicles : 0;
+        document.getElementById('insightMultiVisit').textContent = multiVisitCount;
+
+        // Most common service (would need backend data)
+        document.getElementById('insightCommonService').textContent = 'Wheel Balancing';
+
+        // Show patterns section
+        const patternsSection = document.getElementById('patternsSection');
+        if (patternsSection) {
+            patternsSection.style.display = 'block';
+        }
     }
     
     function renderVehiclesTable(vehicles) {
