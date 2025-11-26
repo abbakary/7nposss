@@ -46,9 +46,9 @@ from django.views.generic import View
 logger = logging.getLogger(__name__)
 
 
-def _mark_overdue_orders(hours=24):
+def _mark_overdue_orders():
     try:
-        from .utils.time_utils import is_order_overdue, calculate_working_hours_between
+        from .utils.time_utils import is_order_overdue, calculate_working_hours_between, OVERDUE_THRESHOLD_HOURS
 
         now = timezone.now()
         # Ensure inquiries are treated as completed (retroactively normalize existing data)
@@ -61,6 +61,7 @@ def _mark_overdue_orders(hours=24):
 
         # Mark orders as overdue based on working hours elapsed (9 working hours = 8 AM to 5 PM)
         # Check both 'in_progress' and 'created' orders that have exceeded the 9-hour threshold
+        # Using OVERDUE_THRESHOLD_HOURS constant (currently set to 9 hours)
 
         # 1. Check in_progress orders with started_at set
         in_progress_orders = Order.objects.filter(
